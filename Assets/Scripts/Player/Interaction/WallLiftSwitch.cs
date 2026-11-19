@@ -163,7 +163,6 @@ public class WallLiftSwitch : InteractableBase
     private Quaternion fallbackSpawnRotation;
 
     private static AudioClip generatedClickClip;
-    private static AudioClip generatedWallMoveClip;
 
     private int PressStateHash => Animator.StringToHash(pressStateName);
 
@@ -597,7 +596,7 @@ public class WallLiftSwitch : InteractableBase
         // Если своих клипов нет — заранее готовим сгенерированный звук,
         // чтобы он не создавался с задержкой в момент нажатия кнопки.
         if (wallMoveClips == null || wallMoveClips.Length == 0)
-            GetGeneratedWallMoveClip();
+            _ = MoveSound.GeneratedMoveClip;
 
         if (wallMoveDebugLog)
             Debug.Log($"[{nameof(WallLiftSwitch)}] Источник звука стены: {source.gameObject.name} (активен: {source.gameObject.activeInHierarchy})", this);
@@ -685,7 +684,7 @@ public class WallLiftSwitch : InteractableBase
 
     private void PlayWallSound()
     {
-        AudioClip clip = GetRandomWallMoveClip();
+        AudioClip clip = MoveSound.GetRandomClip(wallMoveClips);
         if (clip == null)
             return;
 
@@ -717,79 +716,6 @@ public class WallLiftSwitch : InteractableBase
             wallMoveAudioSource.Stop();
 
         wallMoveAudioSource.volume = 0f;
-    }
-
-    private AudioClip GetRandomWallMoveClip()
-    {
-        if (wallMoveClips != null && wallMoveClips.Length > 0)
-        {
-            int start = Random.Range(0, wallMoveClips.Length);
-            for (int i = 0; i < wallMoveClips.Length; i++)
-            {
-                AudioClip clip = wallMoveClips[(start + i) % wallMoveClips.Length];
-                if (clip != null)
-                    return clip;
-            }
-        }
-
-        return GetGeneratedWallMoveClip();
-    }
-
-    // Страховочный звук движения, если в инспекторе не назначены клипы: скрежет + гул лебёдки.
-    // Все синусоиды имеют целые частоты, поэтому клип длиной ровно 1 с зацикливается без щелчка.
-    private static AudioClip GetGeneratedWallMoveClip()
-    {
-        if (generatedWallMoveClip != null)
-            return generatedWallMoveClip;
-
-        const int sampleRate = 22050;
-        const float duration = 1f;
-        int sampleCount = Mathf.CeilToInt(sampleRate * duration);
-        float[] samples = new float[sampleCount];
-
-        const int partialCount = 18;
-        float[] frequencies = new float[partialCount];
-        float[] amplitudes = new float[partialCount];
-        float[] phases = new float[partialCount];
-
-        System.Random random = new System.Random(20211);
-
-        for (int p = 0; p < partialCount; p++)
-        {
-            // «Шорох» трущегося металла: набор частот от низких до высоких.
-            float frequency = Mathf.Lerp(70f, 2200f, p / (float)(partialCount - 1));
-            frequencies[p] = Mathf.Round(frequency);
-            amplitudes[p] = 1f / Mathf.Pow(frequencies[p], 0.6f);
-            phases[p] = (float)random.NextDouble() * Mathf.PI * 2f;
-        }
-
-        for (int i = 0; i < sampleCount; i++)
-        {
-            float time = i / (float)sampleRate;
-            float sample = 0f;
-
-            for (int p = 0; p < partialCount; p++)
-                sample += Mathf.Sin(2f * Mathf.PI * frequencies[p] * time + phases[p]) * amplitudes[p];
-
-            // Низкий гул мотора/лебёдки и медленное «дрожание» громкости.
-            sample += Mathf.Sin(2f * Mathf.PI * 50f * time) * 0.35f;
-            sample *= 0.55f + 0.45f * Mathf.Sin(2f * Mathf.PI * 3f * time);
-
-            samples[i] = sample;
-        }
-
-        // Нормируем громкость клипа, чтобы он был слышен так же уверенно, как щелчок кнопки.
-        float peak = 0f;
-        for (int i = 0; i < sampleCount; i++)
-            peak = Mathf.Max(peak, Mathf.Abs(samples[i]));
-
-        float scale = peak > 0.0001f ? 0.9f / peak : 1f;
-        for (int i = 0; i < sampleCount; i++)
-            samples[i] = Mathf.Clamp(samples[i] * scale, -1f, 1f);
-
-        generatedWallMoveClip = AudioClip.Create("GeneratedWallMove", sampleCount, 1, sampleRate, false);
-        generatedWallMoveClip.SetData(samples, 0);
-        return generatedWallMoveClip;
     }
 
     private IEnumerator MoveWallRoutine()
