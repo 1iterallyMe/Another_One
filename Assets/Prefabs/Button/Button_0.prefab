@@ -380,7 +380,11 @@ MonoBehaviour:
   outlineWidth: 10
   outlineMode: 1
   wall: {fileID: 0}
-  dropDistance: 3
+  moveWallOnPress: 1
+  moveDirection: 0
+  customDirection: {x: 0, y: -1, z: 0}
+  directionIsLocal: 0
+  moveDistance: 3
   movementSpeed: 2
   waitAtBottom: 2
   keepOpen: 0
@@ -390,6 +394,11 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   requirePickupObject: 1
+  spawnItemOnPress: 0
+  itemPrefab: {fileID: 0}
+  itemSpawnPoint: {fileID: 0}
+  itemSpawnOffset: {x: 0, y: 0, z: 0}
+  spawnItemOnlyOnce: 1
   respawnPrefab: {fileID: 479037065795344344, guid: c026bbaab244c41a195440a01af5d590, type: 3}
   respawnPoint: {fileID: 0}
   currentInstance: {fileID: 0}
@@ -401,6 +410,17 @@ MonoBehaviour:
   audioSource: {fileID: 5433076841785931205}
   pressVolume: 0.8
   pressPitchRange: {x: 0.97, y: 1.03}
+  playWallMoveSound: 1
+  wallMoveClips:
+  - {fileID: 8300000, guid: 9077aaabdcd634df2af358d319fcb3c6, type: 3}
+  - {fileID: 8300000, guid: 5420c2f069c5745e784397bb3c033b94, type: 3}
+  - {fileID: 8300000, guid: 216aacf5c0fa54c079db590fe6d71a61, type: 3}
+  - {fileID: 8300000, guid: 6b8cadbfc6fef4392bbbc06631055fa1, type: 3}
+  wallMoveAudioSource: {fileID: 0}
+  wallMoveVolume: 0.8
+  wallMovePitchRange: {x: 0.92, y: 1.08}
+  wallMoveFadeIn: 0.12
+  wallMoveFadeOut: 0.18
 --- !u!114 &525444031602804253
 MonoBehaviour:
   m_ObjectHideFlags: 0

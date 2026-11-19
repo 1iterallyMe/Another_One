@@ -72,6 +72,9 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
 
     private float nextImpactTime;
 
+    // Ограничение скорости броска, чтобы предмет не «выстреливал» сквозь стены.
+    private const float MaxThrowSpeed = 30f;
+
     public override string InteractionPrompt => IsHeavy ? "Тащить" : "Взять";
     public override bool CanInteract(PlayerInteractor interactor) => !IsHeld;
 
@@ -135,7 +138,9 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
             // Лёгкое носим в руках — компенсируем вес.
             rb.useGravity = false;
             rb.linearDamping = 8f;
-            rb.angularDamping = 8f;
+            // Небольшое угловое демпфирование: предмет не должен «сопротивляться»
+            // повороту правой кнопкой мыши, но и не крутится сам по себе.
+            rb.angularDamping = 2f;
         }
     }
 
@@ -154,6 +159,17 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
         rb.useGravity = true;
         rb.linearDamping = 0f;
         rb.angularDamping = 0.05f;
+    }
+
+    /// <summary>Бросок: отпускаем предмет и задаём ему скорость (м/с).</summary>
+    public void Throw(Vector3 velocity)
+    {
+        if (!IsHeld) return;
+
+        EndHold();
+
+        // Страховка от «выстрела» предметом, если скорость пришла слишком большая.
+        rb.linearVelocity = Vector3.ClampMagnitude(velocity, MaxThrowSpeed);
     }
 
     void OnCollisionEnter(Collision collision) => HandleImpact(collision);
@@ -270,12 +286,21 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
 
     private void ApplyHoldRotation()
     {
+        if (rb.isKinematic) return;
+
+        // Крутим только если предмет реально отклонился от цели — иначе не трясём его.
         Quaternion deltaRot = targetRotation * Quaternion.Inverse(rb.rotation);
         deltaRot.ToAngleAxis(out float angle, out Vector3 axis);
         if (angle > 180f) angle -= 360f;
 
-        Vector3 torque = axis * angle * 10f - rb.angularVelocity * 5f;
-        rb.AddTorque(torque, ForceMode.Acceleration);
+        // При нулевом угле ось может быть нулевой — тогда крутить нечего.
+        if (axis.sqrMagnitude < 0.000001f) return;
+        if (Mathf.Abs(angle) < 0.2f && rb.angularVelocity.sqrMagnitude < 0.0004f) return;
+
+        // Чем сильнее доворот, тем быстрее предмет догоняет цель, чтобы
+        // вращение правой кнопкой мыши ощущалось сразу, а не «через полсекунды».
+        Vector3 torque = axis.normalized * angle * 50f - rb.angularVelocity * 14f;
+        rb.AddTorque(Vector3.ClampMagnitude(torque, 300f), ForceMode.Acceleration);
     }
 
     /// <summary>Предел скорости удержания: чем тяжелее предмет, тем медленнее он двигается.</summary>

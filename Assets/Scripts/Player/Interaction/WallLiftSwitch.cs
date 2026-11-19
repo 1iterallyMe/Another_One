@@ -125,16 +125,45 @@ public class WallLiftSwitch : InteractableBase
     [Tooltip("Диапазон случайной высоты тона, чтобы звуки не повторялись.")]
     [SerializeField] private Vector2 pressPitchRange = new Vector2(0.97f, 1.03f);
 
+    [Header("Wall movement sound")]
+    [Tooltip("Включить звук движения стены/двери (скрежет и гул во время движения).")]
+    [SerializeField] private bool playWallMoveSound = true;
+    [Tooltip("Клипы скрежета/движения стены. Если массив пуст — используется сгенерированный шум движения.")]
+    [SerializeField] private AudioClip[] wallMoveClips;
+    [Tooltip("Источник звука движения. Должен быть отдельным (не тот, что играет щелчок кнопки). Если пусто — создастся автоматически.")]
+    [SerializeField] private AudioSource wallMoveAudioSource;
+    [SerializeField, Range(0f, 1f)] private float wallMoveVolume = 0.8f;
+    [Tooltip("Диапазон случайной высоты тона, чтобы звук не повторялся от нажатия к нажатию.")]
+    [SerializeField] private Vector2 wallMovePitchRange = new Vector2(0.92f, 1.08f);
+    [Tooltip("Плавное появление звука в начале движения, сек.")]
+    [SerializeField, Min(0f)] private float wallMoveFadeIn = 0.12f;
+    [Tooltip("Плавное затухание звука в конце движения, сек.")]
+    [SerializeField, Min(0f)] private float wallMoveFadeOut = 0.18f;
+    [Tooltip("Небольшая пауза без движения (сек), после которой звук начинает затухать. Защищает от «дребезга» на стыках.")]
+    [SerializeField, Min(0f)] private float wallMoveSoundStopDelay = 0.08f;
+    [Tooltip("Писать в Console, когда запускается звук движения стены (для отладки).")]
+    [SerializeField] private bool wallMoveDebugLog = false;
+
+    private const string WallSoundChildName = "WallMoveSound";
+
     private Vector3 wallStartPosition;
     private bool isMoving;
     private bool hasSpawnedItem;
     private float pressClipLength = -1f;
     private Coroutine buttonRoutine;
 
+    // Состояние звука движения стены (звук идёт, пока стена реально смещается).
+    private Vector3 lastWallPosition;
+    private bool hasLastWallPosition;
+    private float wallSoundTargetVolume;
+    private float wallStillTimer;
+    private float nextWallSoundPlayAttempt;
+
     private Vector3 fallbackSpawnPosition;
     private Quaternion fallbackSpawnRotation;
 
     private static AudioClip generatedClickClip;
+    private static AudioClip generatedWallMoveClip;
 
     private int PressStateHash => Animator.StringToHash(pressStateName);
 
@@ -149,6 +178,7 @@ public class WallLiftSwitch : InteractableBase
             buttonAnimator = GetComponentInChildren<Animator>(true);
 
         SetupAudio();
+        SetupWallAudio();
 
         // Запоминаем исходный экземпляр и его позицию — это запасная точка появления.
         if (currentInstance == null)
@@ -167,10 +197,33 @@ public class WallLiftSwitch : InteractableBase
         }
     }
 
+    private void OnEnable()
+    {
+        // После повторного включения объекта заново запоминаем позицию стены,
+        // чтобы не «дёрнуть» звук из-за накопленного смещения.
+        if (wall != null)
+        {
+            lastWallPosition = wall.position;
+            hasLastWallPosition = true;
+        }
+    }
+
     private void Start()
     {
         // Кнопка должна стоять в исходном положении, а не проигрывать клип на старте.
         ResetButtonPose();
+
+        // Запоминаем стартовую позицию стены для отслеживания движения.
+        if (wall != null)
+        {
+            lastWallPosition = wall.position;
+            hasLastWallPosition = true;
+        }
+    }
+
+    private void Update()
+    {
+        UpdateWallMoveSound();
     }
 
     protected override void OnDisable()
@@ -184,6 +237,7 @@ public class WallLiftSwitch : InteractableBase
         }
 
         isMoving = false;
+        StopWallSoundImmediate();
         ResetButtonPose();
     }
 
@@ -361,10 +415,17 @@ public class WallLiftSwitch : InteractableBase
         if (pressedHoldTime > 0f)
             yield return new WaitForSeconds(pressedHoldTime);
 
-        buttonAnimator.speed = -1f;
-        buttonAnimator.Play(stateHash, 0, 1f);
+        // Возврат кнопки. Отрицательный Animator.speed в Unity запрещён,
+        // поэтому тот же клип проигрывается вручную от конца к началу.
+        buttonAnimator.speed = 0f;
 
-        yield return new WaitForSeconds(length);
+        float normalizedTime = 1f;
+        while (normalizedTime > 0f)
+        {
+            normalizedTime -= Time.deltaTime / length;
+            buttonAnimator.Play(stateHash, 0, Mathf.Clamp01(normalizedTime));
+            yield return null;
+        }
 
         ResetButtonPose();
         buttonRoutine = null;
@@ -375,8 +436,9 @@ public class WallLiftSwitch : InteractableBase
         if (buttonAnimator == null || buttonAnimator.runtimeAnimatorController == null)
             return;
 
-        // При выключении объекта Animator уже неактивен — Play() выдал бы предупреждение.
-        if (!buttonAnimator.isActiveAndEnabled)
+        // При выключении объекта Animator (он может быть на дочернем объекте) уже неактивен —
+        // Play() выдал бы предупреждение «Game object with animator is inactive».
+        if (!buttonAnimator.isActiveAndEnabled || !buttonAnimator.gameObject.activeInHierarchy)
             return;
 
         buttonAnimator.speed = 0f;
@@ -477,6 +539,259 @@ public class WallLiftSwitch : InteractableBase
         return generatedClickClip;
     }
 
+    // ================= WALL MOVEMENT SOUND =================
+
+    /// <summary>
+    /// Готовит отдельный источник звука движения. Он создаётся на объекте кнопки
+    /// (её объект всегда активен), поэтому Play() не может «не сыграть».
+    /// Если в инспекторе назначен свой отдельный источник (например, на стене) — используется он.
+    /// </summary>
+    private void SetupWallAudio()
+    {
+        EnsureWallAudio();
+    }
+
+    private void EnsureWallAudio()
+    {
+        if (!playWallMoveSound || wall == null)
+            return;
+
+        // Уже есть рабочий отдельный источник — ничего не создаём.
+        if (IsWallAudioUsable())
+            return;
+
+        // Если в инспекторе назначен отдельный активный источник (не тот, что играет щелчок) — берём его.
+        if (wallMoveAudioSource != null &&
+            wallMoveAudioSource != audioSource &&
+            wallMoveAudioSource.enabled &&
+            wallMoveAudioSource.gameObject.activeInHierarchy)
+        {
+            wallMoveAudioSource.playOnAwake = false;
+            wallMoveAudioSource.loop = true;
+            return;
+        }
+
+        // Иначе создаём свой источник на кнопке.
+        Transform host = transform;
+        Transform existing = host.Find(WallSoundChildName);
+        AudioSource source = existing != null ? existing.GetComponent<AudioSource>() : null;
+
+        if (source == null)
+        {
+            GameObject soundObject = new GameObject(WallSoundChildName);
+            soundObject.transform.SetParent(host, false);
+            source = soundObject.AddComponent<AudioSource>();
+            source.spatialBlend = 1f; // 3D-звук
+            source.minDistance = 2f;
+            source.maxDistance = 30f;
+            source.dopplerLevel = 0f; // стена едет — не «воем» от эффекта Доплера
+        }
+
+        source.enabled = true;
+        source.playOnAwake = false;
+        source.loop = true;
+        source.volume = 0f;
+
+        wallMoveAudioSource = source;
+
+        // Если своих клипов нет — заранее готовим сгенерированный звук,
+        // чтобы он не создавался с задержкой в момент нажатия кнопки.
+        if (wallMoveClips == null || wallMoveClips.Length == 0)
+            GetGeneratedWallMoveClip();
+
+        if (wallMoveDebugLog)
+            Debug.Log($"[{nameof(WallLiftSwitch)}] Источник звука стены: {source.gameObject.name} (активен: {source.gameObject.activeInHierarchy})", this);
+    }
+
+    /// <summary>Источник существует, включён, его объект активен и это не источник щелчка кнопки.</summary>
+    private bool IsWallAudioUsable()
+    {
+        return wallMoveAudioSource != null &&
+               wallMoveAudioSource != audioSource &&
+               wallMoveAudioSource.enabled &&
+               wallMoveAudioSource.gameObject.activeInHierarchy;
+    }
+
+    // Звук идёт всё время, пока стена реально смещается — в любую сторону
+    // (и вниз, и обратно вверх), независимо от того, кто её двигает.
+    private void UpdateWallMoveSound()
+    {
+        if (!playWallMoveSound || wall == null || wallMoveVolume <= 0.0001f)
+        {
+            StopWallSoundImmediate();
+            return;
+        }
+
+        // Источник мог ещё не создаться, потеряться или оказаться на выключенном объекте.
+        EnsureWallAudio();
+        if (!IsWallAudioUsable())
+            return;
+
+        if (!hasLastWallPosition)
+        {
+            lastWallPosition = wall.position;
+            hasLastWallPosition = true;
+            return;
+        }
+
+        Vector3 delta = wall.position - lastWallPosition;
+        lastWallPosition = wall.position;
+
+        if (delta.sqrMagnitude > 0.00000001f)
+        {
+            // Стена едет — звук должен звучать.
+            wallStillTimer = 0f;
+            wallSoundTargetVolume = wallMoveVolume;
+
+            // Если источник замолчал (остановился, клип кончился, объект выключали) —
+            // запускаем заново. Небольшая пауза между попытками, чтобы не спамить Play().
+            if (!IsWallSoundPlaying() && Time.time >= nextWallSoundPlayAttempt)
+            {
+                nextWallSoundPlayAttempt = Time.time + 0.25f;
+                PlayWallSound();
+            }
+        }
+        else
+        {
+            // Стена стоит. Небольшая пауза защищает от дребезга на стыках сегментов.
+            wallStillTimer += Time.deltaTime;
+
+            if (wallSoundTargetVolume > 0f && wallStillTimer >= wallMoveSoundStopDelay)
+                wallSoundTargetVolume = 0f;
+        }
+
+        // Плавно подводим громкость к целевой.
+        float fadeTime = wallSoundTargetVolume > wallMoveAudioSource.volume ? wallMoveFadeIn : wallMoveFadeOut;
+        float step = fadeTime > 0.0001f
+            ? (wallMoveVolume / fadeTime) * Time.deltaTime
+            : float.MaxValue;
+
+        wallMoveAudioSource.volume = Mathf.MoveTowards(
+            wallMoveAudioSource.volume,
+            wallSoundTargetVolume,
+            step);
+
+        // Затухли до нуля — останавливаем источник.
+        if (wallSoundTargetVolume <= 0f && wallMoveAudioSource.volume <= 0.0001f && wallMoveAudioSource.isPlaying)
+            wallMoveAudioSource.Stop();
+    }
+
+    private bool IsWallSoundPlaying()
+    {
+        return wallMoveAudioSource != null &&
+               wallMoveAudioSource.isPlaying &&
+               wallMoveAudioSource.clip != null;
+    }
+
+    private void PlayWallSound()
+    {
+        AudioClip clip = GetRandomWallMoveClip();
+        if (clip == null)
+            return;
+
+        AudioSource source = wallMoveAudioSource;
+
+        // Начинаем «с чистого листа»: Stop() сбрасывает позицию и состояние источника.
+        source.Stop();
+        source.clip = clip;
+        source.loop = true;
+        source.pitch = Random.Range(wallMovePitchRange.x, wallMovePitchRange.y);
+        source.volume = 0f;
+        source.Play();
+
+        if (wallMoveDebugLog)
+            Debug.Log($"[{nameof(WallLiftSwitch)}] Звук движения стены: {clip.name} (источник: {source.gameObject.name})", this);
+    }
+
+    private void StopWallSoundImmediate()
+    {
+        wallSoundTargetVolume = 0f;
+        wallStillTimer = 0f;
+        hasLastWallPosition = false;
+        nextWallSoundPlayAttempt = 0f;
+
+        if (wallMoveAudioSource == null)
+            return;
+
+        if (wallMoveAudioSource.isPlaying)
+            wallMoveAudioSource.Stop();
+
+        wallMoveAudioSource.volume = 0f;
+    }
+
+    private AudioClip GetRandomWallMoveClip()
+    {
+        if (wallMoveClips != null && wallMoveClips.Length > 0)
+        {
+            int start = Random.Range(0, wallMoveClips.Length);
+            for (int i = 0; i < wallMoveClips.Length; i++)
+            {
+                AudioClip clip = wallMoveClips[(start + i) % wallMoveClips.Length];
+                if (clip != null)
+                    return clip;
+            }
+        }
+
+        return GetGeneratedWallMoveClip();
+    }
+
+    // Страховочный звук движения, если в инспекторе не назначены клипы: скрежет + гул лебёдки.
+    // Все синусоиды имеют целые частоты, поэтому клип длиной ровно 1 с зацикливается без щелчка.
+    private static AudioClip GetGeneratedWallMoveClip()
+    {
+        if (generatedWallMoveClip != null)
+            return generatedWallMoveClip;
+
+        const int sampleRate = 22050;
+        const float duration = 1f;
+        int sampleCount = Mathf.CeilToInt(sampleRate * duration);
+        float[] samples = new float[sampleCount];
+
+        const int partialCount = 18;
+        float[] frequencies = new float[partialCount];
+        float[] amplitudes = new float[partialCount];
+        float[] phases = new float[partialCount];
+
+        System.Random random = new System.Random(20211);
+
+        for (int p = 0; p < partialCount; p++)
+        {
+            // «Шорох» трущегося металла: набор частот от низких до высоких.
+            float frequency = Mathf.Lerp(70f, 2200f, p / (float)(partialCount - 1));
+            frequencies[p] = Mathf.Round(frequency);
+            amplitudes[p] = 1f / Mathf.Pow(frequencies[p], 0.6f);
+            phases[p] = (float)random.NextDouble() * Mathf.PI * 2f;
+        }
+
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float time = i / (float)sampleRate;
+            float sample = 0f;
+
+            for (int p = 0; p < partialCount; p++)
+                sample += Mathf.Sin(2f * Mathf.PI * frequencies[p] * time + phases[p]) * amplitudes[p];
+
+            // Низкий гул мотора/лебёдки и медленное «дрожание» громкости.
+            sample += Mathf.Sin(2f * Mathf.PI * 50f * time) * 0.35f;
+            sample *= 0.55f + 0.45f * Mathf.Sin(2f * Mathf.PI * 3f * time);
+
+            samples[i] = sample;
+        }
+
+        // Нормируем громкость клипа, чтобы он был слышен так же уверенно, как щелчок кнопки.
+        float peak = 0f;
+        for (int i = 0; i < sampleCount; i++)
+            peak = Mathf.Max(peak, Mathf.Abs(samples[i]));
+
+        float scale = peak > 0.0001f ? 0.9f / peak : 1f;
+        for (int i = 0; i < sampleCount; i++)
+            samples[i] = Mathf.Clamp(samples[i] * scale, -1f, 1f);
+
+        generatedWallMoveClip = AudioClip.Create("GeneratedWallMove", sampleCount, 1, sampleRate, false);
+        generatedWallMoveClip.SetData(samples, 0);
+        return generatedWallMoveClip;
+    }
+
     private IEnumerator MoveWallRoutine()
     {
         isMoving = true;
@@ -548,6 +863,13 @@ public class WallLiftSwitch : InteractableBase
 
     private IEnumerator MoveWallTo(Vector3 targetPosition)
     {
+        // Стена уже стоит на месте — двигать нечего.
+        if ((wall.position - targetPosition).sqrMagnitude <= 0.0001f)
+        {
+            wall.position = targetPosition;
+            yield break;
+        }
+
         while ((wall.position - targetPosition).sqrMagnitude > 0.0001f)
         {
             wall.position = Vector3.MoveTowards(

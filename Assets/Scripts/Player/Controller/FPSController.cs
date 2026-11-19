@@ -45,6 +45,8 @@ public class FPSController : MonoBehaviour
     [Header("Holding Weight")]
     [Tooltip("Контроллер удержания предметов. Если пусто — найдётся на этом же объекте.")]
     [SerializeField] private PhysicsHoldController physicsHold;
+    [Tooltip("Инвентарь игрока, чтобы не вращать камеру во время поворота предмета.")]
+    [SerializeField] private GrabManager grabManager;
 
     [Header("Movement")]
     public float walkSpeed = 5f;
@@ -161,6 +163,7 @@ public class FPSController : MonoBehaviour
         if (!playerCamera) playerCamera = GetComponentInChildren<Camera>();
         if (!cameraJoint) cameraJoint = playerCamera != null ? playerCamera.transform : transform;
         if (!physicsHold) physicsHold = GetComponent<PhysicsHoldController>();
+        if (!grabManager) grabManager = GetComponent<GrabManager>();
         if (jumpAudioSource != null)
         {
             jumpAudioSource.playOnAwake = false;
@@ -191,7 +194,13 @@ public class FPSController : MonoBehaviour
             Cursor.visible = !lockCursor;
         }
 
-        Look();
+        // Пока игрок вращает предмет правой кнопкой мыши — камера остаётся на месте.
+        bool rotatingHeldItem = (grabManager != null && grabManager.IsRotatingEquippedItem) ||
+                                (physicsHold != null && physicsHold.IsRotatingHeldItem);
+
+        if (!rotatingHeldItem)
+            Look();
+
         GatherInput();
 
         if (animator != null)

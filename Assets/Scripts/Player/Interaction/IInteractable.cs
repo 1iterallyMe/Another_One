@@ -34,6 +34,8 @@ public interface IPhysicsHoldable : IInteractable
     void BeginHold(Vector3 targetPosition, Quaternion targetRotation);
     void SetHoldTarget(Vector3 targetPosition, Quaternion targetRotation);
     void EndHold();
+    /// <summary>Отпустить предмет, придав ему скорость (бросок), м/с.</summary>
+    void Throw(Vector3 velocity);
 }
 
 /// <summary>Опционально: действие на клавишу F.</summary>
