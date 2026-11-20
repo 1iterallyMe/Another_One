@@ -241,6 +241,8 @@ MonoBehaviour:
   torsoMaxUp: 40
   torsoAxis: {x: 1, y: 0, z: 0}
   cameraFollowSpeed: 20
+  physicsHold: {fileID: 7000000000000000002}
+  grabManager: {fileID: 6581365499352679528}
   walkSpeed: 4
   sprintSpeed: 6
   crouchSpeed: 2.5
@@ -251,6 +253,15 @@ MonoBehaviour:
   jumpForce: 5
   jumpBufferTime: 0.15
   coyoteTime: 0.15
+  jumpKey: 32
+  holdToJump: 1
+  jumpClips:
+  - {fileID: 8300000, guid: 23065a6073ce14b52a8cfd271108be77, type: 3}
+  - {fileID: 8300000, guid: 196ca65f840c0405c88d60442dc6469a, type: 3}
+  jumpAudioSource: {fileID: 2115088303995195294}
+  jumpVolume: 0.8
+  jumpPitchRange: {x: 0.95, y: 1.05}
+  jumpSoundCooldown: 0.05
   crouchKey: 306
   holdToCrouch: 1
   crouchHeightMultiplier: 0.6
@@ -262,6 +273,7 @@ MonoBehaviour:
   groundCheckDistance: 0.15
   snapForce: 15
   animator: {fileID: 3762680392489575004}
+  jumpTrigger: Jump
 --- !u!114 &109979552987633971
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -295,6 +307,7 @@ MonoBehaviour:
   iconSpacing: 175
   defaultIconPrefab: {fileID: 0}
   uiBindings: []
+  rotateItemSensitivity: 3
   animator: {fileID: 3762680392489575004}
 --- !u!114 &7000000000000000001
 MonoBehaviour:
@@ -332,7 +345,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PhysicsHoldController
   playerCamera: {fileID: 7504197167460797624}
   holdOffset: {x: 0.4, y: -0.2, z: 1.5}
-  throwForce: 4
+  heavyHoldOffset: {x: 0.3, y: -1.1, z: 1.6}
+  breakDistance: 4.5
+  throwForce: 9
+  rotateSensitivity: 0.25
+  rotateSmoothTime: 0.03
+  invertRotateY: 0
+  scrollAdjustsHoldDistance: 1
+  scrollDistanceStep: 0.15
+  maxPullCloser: 1.2
+  maxPushAway: 1.5
 --- !u!114 &7000000000000000003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1437,7 +1459,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &8112596668069354009
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1873,19 +1895,19 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 1542665722357274827, guid: 98c698cefef6543e1b463c92af586f3e, type: 3}
       propertyPath: m_VersionIndex
-      value: 3145
+      value: 3190
       objectReference: {fileID: 0}
     - target: {fileID: 2077515154703619600, guid: 98c698cefef6543e1b463c92af586f3e, type: 3}
       propertyPath: m_VersionIndex
-      value: 3081
+      value: 3126
       objectReference: {fileID: 0}
     - target: {fileID: 5343110582117207882, guid: 98c698cefef6543e1b463c92af586f3e, type: 3}
       propertyPath: m_VersionIndex
-      value: 2798
+      value: 2843
       objectReference: {fileID: 0}
     - target: {fileID: 5736567792122772186, guid: 98c698cefef6543e1b463c92af586f3e, type: 3}
       propertyPath: m_VersionIndex
-      value: 2997
+      value: 3042
       objectReference: {fileID: 0}
     - target: {fileID: 6392786003711228121, guid: 98c698cefef6543e1b463c92af586f3e, type: 3}
       propertyPath: m_Name
@@ -1893,15 +1915,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6470273416293631493, guid: 98c698cefef6543e1b463c92af586f3e, type: 3}
       propertyPath: m_VersionIndex
-      value: 4386
-      objectReference: {fileID: 0}
-    - target: {fileID: 6916565212405704494, guid: 98c698cefef6543e1b463c92af586f3e, type: 3}
-      propertyPath: m_Name
-      value: Head_Target
+      value: 4431
       objectReference: {fileID: 0}
     - target: {fileID: 7406934731597257982, guid: 98c698cefef6543e1b463c92af586f3e, type: 3}
       propertyPath: m_VersionIndex
-      value: 1827
+      value: 1872
       objectReference: {fileID: 0}
     - target: {fileID: 8836717538924646608, guid: 98c698cefef6543e1b463c92af586f3e, type: 3}
       propertyPath: m_LocalPosition.x

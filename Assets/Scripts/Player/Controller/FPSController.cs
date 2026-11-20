@@ -42,6 +42,12 @@ public class FPSController : MonoBehaviour
     [Tooltip("Плавность следования камеры за головой")]
     public float cameraFollowSpeed = 20f;
 
+    [Header("Holding Weight")]
+    [Tooltip("Контроллер удержания предметов. Если пусто — найдётся на этом же объекте.")]
+    [SerializeField] private PhysicsHoldController physicsHold;
+    [Tooltip("Инвентарь игрока, чтобы не вращать камеру во время поворота предмета.")]
+    [SerializeField] private GrabManager grabManager;
+
     [Header("Movement")]
     public float walkSpeed = 5f;
     public float sprintSpeed = 8f;
@@ -55,6 +61,20 @@ public class FPSController : MonoBehaviour
     public float jumpForce = 5f;
     public float jumpBufferTime = 0.15f;
     public float coyoteTime = 0.15f;
+    [Tooltip("Клавиша прыжка.")]
+    public KeyCode jumpKey = KeyCode.Space;
+    [Tooltip("Если включено — удержание клавиши прыжка заставляет прыгать постоянно.")]
+    public bool holdToJump = true;
+
+    [Header("Jump Sound")]
+    [Tooltip("Несколько звуков прыжка — каждый раз играет случайный. Также используются батутом, если у батута нет своих звуков.")]
+    [SerializeField] private AudioClip[] jumpClips;
+    [Tooltip("Источник звука прыжка. Если пусто — создастся автоматически.")]
+    [SerializeField] private AudioSource jumpAudioSource;
+    [SerializeField, Range(0f, 1f)] private float jumpVolume = 0.8f;
+    [Tooltip("Диапазон случайной высоты тона, чтобы звуки не повторялись.")]
+    [SerializeField] private Vector2 jumpPitchRange = new Vector2(0.95f, 1.05f);
+    [SerializeField, Min(0f)] private float jumpSoundCooldown = 0.05f;
 
     [Header("Crouch Physics")]
     public KeyCode crouchKey = KeyCode.LeftControl;
@@ -70,10 +90,20 @@ public class FPSController : MonoBehaviour
 
     [Header("Animation")]
     public Animator animator;
+    [Tooltip("Необязательный триггер анимации прыжка/отскока. Оставь пустым, если в Animator нет такого параметра.")]
+    public string jumpTrigger = "";
 
     // Публичное состояние для PlayerFootsteps и других систем
     public bool IsGrounded => isGrounded;
     public bool IsCrouched => isCrouched;
+
+    /// <summary>Игрок нажал/держит прыжок (в пределах буфера).</summary>
+    public bool WantsToJump => jumpBufferCounter > 0f;
+
+    /// <summary>Под ногами сейчас батут.</summary>
+    public bool IsOnTrampoline =>
+        currentGroundCollider != null &&
+        currentGroundCollider.GetComponentInParent<Trampoline>() != null;
     public float HorizontalSpeed
     {
         get
@@ -99,6 +129,13 @@ public class FPSController : MonoBehaviour
     private float jumpBufferCounter;
     private float coyoteTimeCounter;
     private float lastJumpTime;
+    private float suppressGroundUntil;
+    private Collider currentGroundCollider;
+
+    private float nextJumpSoundTime;
+    private int lastJumpClipIndex = -1;
+
+    private const float TrampolineFallSpeed = 1f;
     private float originalHeight;
     private Vector3 originalCenter;
 
@@ -125,6 +162,13 @@ public class FPSController : MonoBehaviour
 
         if (!playerCamera) playerCamera = GetComponentInChildren<Camera>();
         if (!cameraJoint) cameraJoint = playerCamera != null ? playerCamera.transform : transform;
+        if (!physicsHold) physicsHold = GetComponent<PhysicsHoldController>();
+        if (!grabManager) grabManager = GetComponent<GrabManager>();
+        if (jumpAudioSource != null)
+        {
+            jumpAudioSource.playOnAwake = false;
+            jumpAudioSource.loop = false;
+        }
 
         originalHeight = col.height;
         originalCenter = col.center;
@@ -150,7 +194,13 @@ public class FPSController : MonoBehaviour
             Cursor.visible = !lockCursor;
         }
 
-        Look();
+        // Пока игрок вращает предмет правой кнопкой мыши — камера остаётся на месте.
+        bool rotatingHeldItem = (grabManager != null && grabManager.IsRotatingEquippedItem) ||
+                                (physicsHold != null && physicsHold.IsRotatingHeldItem);
+
+        if (!rotatingHeldItem)
+            Look();
+
         GatherInput();
 
         if (animator != null)
@@ -170,7 +220,26 @@ public class FPSController : MonoBehaviour
 
     void FixedUpdate()
     {
-        CheckGround();
+        // После батута временно не считаем игрока на земле, иначе Move() погасит вертикальную скорость.
+        if (Time.time < suppressGroundUntil)
+        {
+            isGrounded = false;
+            groundNormal = Vector3.up;
+            coyoteTimeCounter = 0f;
+        }
+        else
+        {
+            CheckGround();
+        }
+
+        // Падение на батут не гасим и не превращаем в обычный прыжок —
+        // пусть столкновение обработает сам батут.
+        if (IsOnTrampoline && rb.linearVelocity.y < -TrampolineFallSpeed)
+        {
+            isGrounded = false;
+            coyoteTimeCounter = 0f;
+        }
+
         HandleCrouchPhysics();
         HandleJump();
         Move();
@@ -264,7 +333,8 @@ public class FPSController : MonoBehaviour
         moveInput = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical")).normalized;
         isSprinting = Input.GetKey(sprintKey) && !isCrouched && moveInput.z > 0.1f;
 
-        if (Input.GetKeyDown(KeyCode.Space)) jumpBufferCounter = jumpBufferTime;
+        bool jumpInput = holdToJump ? Input.GetKey(jumpKey) : Input.GetKeyDown(jumpKey);
+        if (jumpInput) jumpBufferCounter = jumpBufferTime;
         else jumpBufferCounter -= Time.deltaTime;
 
         if (holdToCrouch)
@@ -290,6 +360,7 @@ public class FPSController : MonoBehaviour
             isGrounded = false;
             groundNormal = Vector3.up;
             coyoteTimeCounter = 0f;
+            currentGroundCollider = null;
             return;
         }
 
@@ -307,18 +378,114 @@ public class FPSController : MonoBehaviour
                 isGrounded = true;
                 groundNormal = hit.normal;
                 coyoteTimeCounter = coyoteTime;
+                currentGroundCollider = hit.collider;
                 return;
             }
         }
 
         isGrounded = false;
         groundNormal = Vector3.up;
+        currentGroundCollider = null;
         coyoteTimeCounter -= Time.fixedDeltaTime;
+    }
+
+    /// <summary>Подбросить игрока с батута вдоль заданной нормали.</summary>
+    public void TrampolineBounce(Vector3 direction, float speed)
+    {
+        Vector3 normal = direction.sqrMagnitude > 0.0001f ? direction.normalized : Vector3.up;
+
+        Vector3 velocity = rb.linearVelocity;
+
+        // Гасим скорость падения вдоль нормали и задаём подбрасывание.
+        float along = Vector3.Dot(velocity, normal);
+        if (along < 0f) velocity -= normal * along;
+        velocity += normal * speed;
+        rb.linearVelocity = velocity;
+
+        isGrounded = false;
+        groundNormal = Vector3.up;
+        jumpBufferCounter = 0f;
+        coyoteTimeCounter = 0f;
+        lastJumpTime = Time.time;
+
+        // Несколько кадров не даём Move()/SnapToGround() погасить вертикальную скорость.
+        suppressGroundUntil = Time.time + 0.25f;
+
+        PlayJumpAnimation();
+    }
+
+    private void PlayJumpAnimation()
+    {
+        if (animator != null && !string.IsNullOrEmpty(jumpTrigger))
+            animator.SetTrigger(jumpTrigger);
+    }
+
+    /// <summary>Проиграть случайный звук прыжка.</summary>
+    public void PlayJumpSound()
+    {
+        if (jumpClips == null || jumpClips.Length == 0) return;
+        if (Time.time < nextJumpSoundTime) return;
+
+        AudioClip clip = PickRandomClip(jumpClips, ref lastJumpClipIndex);
+        if (clip == null) return;
+
+        if (jumpAudioSource == null)
+        {
+            jumpAudioSource = gameObject.AddComponent<AudioSource>();
+            jumpAudioSource.playOnAwake = false;
+            jumpAudioSource.spatialBlend = 1f;
+        }
+
+        nextJumpSoundTime = Time.time + jumpSoundCooldown;
+        jumpAudioSource.pitch = Random.Range(
+            Mathf.Min(jumpPitchRange.x, jumpPitchRange.y),
+            Mathf.Max(jumpPitchRange.x, jumpPitchRange.y));
+        jumpAudioSource.PlayOneShot(clip, jumpVolume);
+    }
+
+    private static AudioClip PickRandomClip(AudioClip[] clips, ref int lastIndex)
+    {
+        if (clips == null || clips.Length == 0) return null;
+
+        int count = clips.Length;
+        int start = Random.Range(0, count);
+
+        for (int i = 0; i < count; i++)
+        {
+            int idx = (start + i) % count;
+            if (clips[idx] == null) continue;
+            if (count > 1 && idx == lastIndex) continue;
+            lastIndex = idx;
+            return clips[idx];
+        }
+
+        // Если все клипы пустые или доступен только последний — вернём любой валидный.
+        for (int i = 0; i < count; i++)
+        {
+            if (clips[i] != null)
+            {
+                lastIndex = i;
+                return clips[i];
+            }
+        }
+
+        return null;
     }
 
     void HandleJump()
     {
         if (isCrouched) return;
+
+        // С тяжёлым предметом прыгать нельзя — иначе его можно «подбросить».
+        if (physicsHold != null && physicsHold.IsDraggingHeavy)
+        {
+            jumpBufferCounter = 0f;
+            return;
+        }
+
+        // Если падаем на батут, отскок обрабатывает сам батут (с учётом нажатого прыжка).
+        if (IsOnTrampoline && rb.linearVelocity.y < -TrampolineFallSpeed)
+            return;
 
         if (jumpBufferCounter > 0f && coyoteTimeCounter > 0f)
         {
@@ -332,13 +499,23 @@ public class FPSController : MonoBehaviour
             currentVel.y = 0f;
             currentVel.y = jumpForce;
             rb.linearVelocity = currentVel;
+
+            PlayJumpAnimation();
+            PlayJumpSound();
         }
     }
 
     void Move()
     {
         Vector3 currentVel = rb.linearVelocity;
-        float speed = isCrouched ? crouchSpeed : (isSprinting ? sprintSpeed : walkSpeed);
+
+        // Перетаскивание тяжёлого предмета замедляет игрока и запрещает бег.
+        bool draggingHeavy = physicsHold != null && physicsHold.IsDraggingHeavy;
+        float speedMultiplier = physicsHold != null ? physicsHold.PlayerSpeedMultiplier : 1f;
+        float baseSpeed = isCrouched
+            ? crouchSpeed
+            : (isSprinting && !draggingHeavy ? sprintSpeed : walkSpeed);
+        float speed = baseSpeed * speedMultiplier;
 
         Vector3 moveDirection = Quaternion.Euler(0f, yaw, 0f) * moveInput;
 

@@ -25,9 +25,17 @@ public interface IInventoryItem : IInteractable
 public interface IPhysicsHoldable : IInteractable
 {
     bool IsHeld { get; }
+    /// <summary>Масса предмета (кг).</summary>
+    float Mass { get; }
+    /// <summary>true, если предмет слишком тяжёлый для переноски и должен тащиться.</summary>
+    bool IsHeavy { get; }
+    /// <summary>Множитель скорости игрока при удержании этого предмета (1 = без замедления).</summary>
+    float PlayerSpeedMultiplier { get; }
     void BeginHold(Vector3 targetPosition, Quaternion targetRotation);
     void SetHoldTarget(Vector3 targetPosition, Quaternion targetRotation);
     void EndHold();
+    /// <summary>Отпустить предмет, придав ему скорость (бросок), м/с.</summary>
+    void Throw(Vector3 velocity);
 }
 
 /// <summary>Опционально: действие на клавишу F.</summary>

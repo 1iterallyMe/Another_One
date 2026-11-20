@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 [System.Serializable]
 public class GrabUIBinding
@@ -30,11 +31,16 @@ public class GrabManager : MonoBehaviour
     public GameObject defaultIconPrefab;
     public GrabUIBinding[] uiBindings;
 
+    [Header("Предмет в руке")]
+    [Tooltip("Поворот предмета, пока зажата правая кнопка мыши.")]
+    [SerializeField] private float rotateItemSensitivity = 3f;
+
     [Header("Animation")]
     public Animator animator;
 
     public bool IsInventoryHidden => isInventoryHidden;
     public bool HasEquipped => currentIndex >= 0 && currentIndex < inventory.Count;
+    public bool IsRotatingEquippedItem => !isInventoryHidden && HasEquipped && IsRotateButtonHeld();
 
     public event System.Action<MonoBehaviour> EquippedChanged;
 
@@ -53,14 +59,73 @@ public class GrabManager : MonoBehaviour
     int currentIndex = -1;
     int savedIndex = -1;
     bool isInventoryHidden = false;
+    Quaternion equippedItemRotation = Quaternion.identity;
+    Quaternion targetItemRotation = Quaternion.identity;
+    Transform rotatedItem;
 
     Coroutine holdCoroutine;
 
     void Update()
     {
-        if (isInventoryHidden) return;
+        if (isInventoryHidden)
+        {
+            rotatedItem = null;
+            return;
+        }
+
         HandleSwitch();
         HandleScroll();
+        HandleEquippedItemRotation();
+    }
+
+    static bool IsRotateButtonHeld()
+    {
+        Mouse mouse = Mouse.current;
+        return mouse != null
+            ? mouse.rightButton.isPressed
+            : Input.GetKey(KeyCode.Mouse1);
+    }
+
+    static Vector2 ReadMouseDelta()
+    {
+        Mouse mouse = Mouse.current;
+        if (mouse != null) return mouse.delta.ReadValue();
+
+        return new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
+    }
+
+    void HandleEquippedItemRotation()
+    {
+        if (!HasEquipped || lightPoint == null)
+        {
+            rotatedItem = null;
+            return;
+        }
+
+        Transform item = inventory[currentIndex]?.component != null
+            ? inventory[currentIndex].component.transform
+            : null;
+        if (item == null)
+        {
+            rotatedItem = null;
+            return;
+        }
+
+        if (rotatedItem != item)
+        {
+            rotatedItem = item;
+            equippedItemRotation = item.localRotation;
+            targetItemRotation = equippedItemRotation;
+        }
+
+        if (!IsRotateButtonHeld()) return;
+
+        Vector2 mouseDelta = ReadMouseDelta();
+        float horizontal = mouseDelta.x * rotateItemSensitivity;
+        float vertical = mouseDelta.y * rotateItemSensitivity;
+        targetItemRotation = Quaternion.AngleAxis(horizontal, Vector3.up) * targetItemRotation;
+        targetItemRotation = Quaternion.AngleAxis(-vertical, Vector3.right) * targetItemRotation;
+        item.localRotation = targetItemRotation;
     }
 
     // ================= PUBLIC API =================
@@ -139,6 +204,7 @@ public class GrabManager : MonoBehaviour
         if (index < 0 || index >= inventory.Count)
         {
             currentIndex = -1;
+            rotatedItem = null;
             UpdateUISelection();
             UpdateAnimationState();
             EquippedChanged?.Invoke(null);
@@ -157,6 +223,10 @@ public class GrabManager : MonoBehaviour
         component.transform.SetParent(lightPoint, false);
         component.transform.localPosition = Vector3.zero;
         component.transform.localRotation = Quaternion.identity;
+
+        equippedItemRotation = component.transform.localRotation;
+        targetItemRotation = equippedItemRotation;
+        rotatedItem = component.transform;
 
         SetItemVisible(component, true);
         SetItemAudio(component, true);
