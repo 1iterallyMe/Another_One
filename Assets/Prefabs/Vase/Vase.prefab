@@ -698,7 +698,7 @@ MonoBehaviour:
   m_PreserveMeshAssetOnDestroy: 0
   assetGuid: 
   m_Mesh: {fileID: 0}
-  m_VersionIndex: 1478
+  m_VersionIndex: 1490
   m_IsSelectable: 1
   m_SelectedFaces: 
   m_SelectedEdges: []
@@ -814,7 +814,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 479037065795344344}
   serializedVersion: 5
-  m_Mass: 100
+  m_Mass: 5
   m_LinearDamping: 0
   m_AngularDamping: 0.05
   m_CenterOfMass: {x: 0, y: 0, z: 0}
@@ -854,6 +854,14 @@ MonoBehaviour:
   followForce: 600
   maxForce: 1500
   damping: 15
+  maxCarryMass: 20
+  maxCarrySpeed: 5
+  minDragSpeed: 0.15
+  dragSpeedFalloff: 1.5
+  dragFollowSpeed: 3
+  dragAcceleration: 10
+  dragAngularDeceleration: 12
+  minPlayerSpeedMultiplier: 0.05
   collisionCheckRadius: 0.2
   collisionMask:
     serializedVersion: 2

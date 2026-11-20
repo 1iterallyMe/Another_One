@@ -45,7 +45,19 @@ public class PlayerInteractor : MonoBehaviour
         UpdateFocus();
 
         if (Input.GetKeyDown(interactKey)) Interact();
-        if (Input.GetKeyDown(useKey) && inventory != null) inventory.UseEquipped(this);
+        if (Input.GetKeyDown(useKey)) UseOrThrow();
+    }
+
+    /// <summary>F: бросаем предмет из рук, иначе используем предмет инвентаря.</summary>
+    void UseOrThrow()
+    {
+        if (physicsHold != null && physicsHold.IsHolding)
+        {
+            physicsHold.Throw();
+            return;
+        }
+
+        if (inventory != null) inventory.UseEquipped(this);
     }
 
     void UpdateFocus()

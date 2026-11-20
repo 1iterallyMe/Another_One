@@ -135,7 +135,10 @@ public class HandController : MonoBehaviour
             if (!initialized) { smoothedPos = handObject.position; smoothedRot = handObject.rotation; initialized = true; }
 
             Vector3 targetPos = lightPoint.position;
-            Quaternion targetRot = lightPoint.rotation * Quaternion.Euler(inventoryEulerOffset);
+            bool rotatingHeldItem = inventory != null && inventory.IsRotatingEquippedItem;
+            Quaternion targetRot = rotatingHeldItem
+                ? handObject.rotation
+                : lightPoint.rotation * Quaternion.Euler(inventoryEulerOffset);
 
             smoothedPos = Vector3.SmoothDamp(smoothedPos, targetPos, ref attachVelocity, attachSmoothTime);
             smoothedRot = Quaternion.Slerp(smoothedRot, targetRot, 1f - Mathf.Exp(-rotationLerpSpeed * Time.deltaTime));
