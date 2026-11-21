@@ -42,6 +42,14 @@ public class PlayerInteractor : MonoBehaviour
             return;
         }
 
+        // Пока игрок едет на зиплайне, обычное взаимодействие отключено:
+        // иначе E может «зацепить» кнопку/предмет мимо цели.
+        if (ZiplineController.ActiveRide != null)
+        {
+            SetFocus(null);
+            return;
+        }
+
         UpdateFocus();
 
         if (Input.GetKeyDown(interactKey)) Interact();
@@ -65,7 +73,9 @@ public class PlayerInteractor : MonoBehaviour
         IInteractable found = null;
         float bestDistance = float.MaxValue;
 
-        Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
+        // Луч строго из центра экрана — как прицел. Небольшой радиус сферы
+        // прощает неточное наведение на мелкие объекты (кнопки, вентили).
+        Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         int count = Physics.SphereCastNonAlloc(ray, sphereRadius, hits, interactDistance, interactMask, QueryTriggerInteraction.Collide);
 
         for (int i = 0; i < count; i++)
@@ -108,6 +118,22 @@ public class PlayerInteractor : MonoBehaviour
             if (physicsHold != null && physicsHold.IsHolding) physicsHold.Release();
             return;
         }
+
+        // --- Механики выживания -------------------------------------------
+        // Явная маршрутизация по типу объекта, на который попал луч:
+        // генератор — заправляем из канистры, зиплайн — начинаем поездку.
+        if (Focused is GeneratorController generator)
+        {
+            generator.TryRefuel();
+            return;
+        }
+
+        if (Focused is ZiplineController zipline)
+        {
+            zipline.TryStartRide(this);
+            return;
+        }
+        // ------------------------------------------------------------------
 
         if (Focused is IPhysicsHoldable && inventory != null && inventory.HasEquipped)
             inventory.UnequipAll();
