@@ -85,26 +85,38 @@
 
 ## 3. Critical
 
-### [BUG-001] Зиплайн физически не может двигаться — фича неработоспособна
+### [BUG-001] Зиплайн в `Amir` физически не может двигаться — регрессия в рабочем дереве
 
 - **Файлы:** `Assets/Art/Models/Zipline/zipline.prefab:2615-2616`,
   `Assets/Scripts/Player/Pickup/zipline/CableZiplineRide.cs:76, 402`
-- **Суть:** в префабе `powerWithoutGenerator: 0` и `generator: {fileID: 0}`.
-  Свойство `HasPower => powerWithoutGenerator || (generator != null && generator.HasPower)`
-  даёт **false всегда**. `UpdateRouteMovement()` начинается с `if (HasPower)`,
-  поэтому `input` остаётся `0` и метод выходит по `Mathf.Abs(input) <= 0.01f`.
-  Ветка «по Y» (`CableZiplineRide.cs:277`) также требует `HasPower`. Поездка
-  инициируется (в `CanInteract` проверки питания нет), игрок садится — и зависает.
+- **Суть:** в базовом префабе `powerWithoutGenerator: 0` и `generator: {fileID: 0}`.
+  Свойство `HasPower => powerWithoutGenerator || (generator != null && generator.HasPower)`.
+  `UpdateRouteMovement()` начинается с `if (HasPower)`, поэтому `input` остаётся `0`
+  и метод выходит по `Mathf.Abs(input) <= 0.01f`. Ветка «по Y»
+  (`CableZiplineRide.cs:277`) также требует `HasPower`. Поездка инициируется
+  (в `CanInteract` проверки питания нет), игрок садится — и зависает.
+- **Область поражения — только `Amir`** (уточнено повторным прогоном протокола):
+  `powerWithoutGenerator` не переопределён нигде (`ZiplineSystem.prefab` — 0,
+  `Amir.unity` — 0, `Alexander.unity` — 0), но `generator` **переопределён
+  в `Alexander.unity`** (override → `FuelGenerator`, component fileID `219948757`).
+  В `ZiplineSystem.prefab` (инстанс в `Amir`) `generator` не назначается → `null`.
+  Итог: в `Amir` `HasPower == false`; в `Alexander` питание считается через реальный
+  `FuelGenerator` (`IsRunning && IsCableConnected`) — там баг **не воспроизводится**.
 - **Репро:** Play `Amir` → собрать зиплайн из двух частей → подключить к тросу →
   сесть (E) → W/S не дают движения; выйти можно только по E/F.
-- **Подтверждение регрессии:** это незакоммиченное изменение рабочего дерева —
-  `git diff` по `zipline.prefab` показывает `powerWithoutGenerator: 1 → 0`.
-  Ни `Assets/Prefabs/ZiplineSystem.prefab`, ни `Amir.unity`, ни `Alexander.unity`
-  это поле не переопределяют (проверено grep'ом).
-- **Исправление:** вернуть `powerWithoutGenerator: 1` (либо назначить реальный
-  `generator`). Альтернатива «правильнее по геймдизайну»: добавить проверку
-  питания в `CanInteract` и показывать игроку причину отказа.
-- **Риск исправления:** Low.
+- **Подтверждение регрессии:** незакоммиченное изменение рабочего дерева —
+  `git diff` по `zipline.prefab` содержит **ровно один хунк**
+  (`1 file changed, 1 insertion(+), 1 deletion(-)`): `powerWithoutGenerator: 1 → 0`.
+- **Исправление (варианты, требуется решение):**
+  - **A.** Вернуть `powerWithoutGenerator: 1` в базовом префабе — исправляет `Amir`,
+    но снимает проверку питания и в `Alexander` (зиплайн поедет без генератора).
+  - **B.** Добавить override `powerWithoutGenerator: 1` только в `ZiplineSystem.prefab`
+    (инстанс в `Amir`) — исправляет `Amir`, не меняя `Alexander`. Правка инстанса,
+    а не базового префаба.
+  - **C.** Назначить реальный `FuelGenerator` в инстансе `Amir` — сохраняет
+    геймдизайн «нужно заправить генератор», но требует проверки, что в `Amir` эта
+    цепочка физически выполнима игроком.
+- **Риск исправления:** Low (A, B), Medium (C — геймплейная цепочка).
 
 ---
 
