@@ -1950,6 +1950,14 @@ MonoBehaviour:
   followForce: 600
   maxForce: 1500
   damping: 15
+  maxCarryMass: 20
+  maxCarrySpeed: 8
+  minDragSpeed: 0.15
+  dragSpeedFalloff: 1.5
+  dragFollowSpeed: 3
+  dragAcceleration: 10
+  dragAngularDeceleration: 12
+  minPlayerSpeedMultiplier: 0.05
   collisionCheckRadius: 0.2
   collisionMask:
     serializedVersion: 2
@@ -5299,9 +5307,25 @@ MonoBehaviour:
   outlineWidth: 10
   outlineMode: 1
   wall: {fileID: 1260684912}
-  dropDistance: 3
+  moveWallOnPress: 1
+  moveDirection: 0
+  customDirection: {x: 0, y: -1, z: 0}
+  directionIsLocal: 0
+  moveDistance: 3
   movementSpeed: 2
   waitAtBottom: 2
+  keepOpen: 1
+  allowBallActivation: 1
+  minBallImpactSpeed: 0.2
+  ballActivationMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  requirePickupObject: 1
+  spawnItemOnPress: 0
+  itemPrefab: {fileID: 0}
+  itemSpawnPoint: {fileID: 0}
+  itemSpawnOffset: {x: 0, y: 0, z: 0}
+  spawnItemOnlyOnce: 1
   respawnPrefab: {fileID: 479037065795344344, guid: c026bbaab244c41a195440a01af5d590, type: 3}
   respawnPoint: {fileID: 1073870387}
   currentInstance: {fileID: 551167176}
@@ -5313,6 +5337,15 @@ MonoBehaviour:
   audioSource: {fileID: 367346750}
   pressVolume: 0.8
   pressPitchRange: {x: 0.97, y: 1.03}
+  playWallMoveSound: 1
+  wallMoveClips: []
+  wallMoveAudioSource: {fileID: 0}
+  wallMoveVolume: 0.8
+  wallMovePitchRange: {x: 0.92, y: 1.08}
+  wallMoveFadeIn: 0.12
+  wallMoveFadeOut: 0.18
+  wallMoveSoundStopDelay: 0.08
+  wallMoveDebugLog: 0
 --- !u!95 &367346749
 Animator:
   serializedVersion: 7
@@ -13157,9 +13190,25 @@ MonoBehaviour:
   outlineWidth: 10
   outlineMode: 1
   wall: {fileID: 568769138}
-  dropDistance: 3
+  moveWallOnPress: 1
+  moveDirection: 0
+  customDirection: {x: 0, y: -1, z: 0}
+  directionIsLocal: 0
+  moveDistance: 3
   movementSpeed: 2
   waitAtBottom: 2
+  keepOpen: 1
+  allowBallActivation: 1
+  minBallImpactSpeed: 0.2
+  ballActivationMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  requirePickupObject: 1
+  spawnItemOnPress: 0
+  itemPrefab: {fileID: 0}
+  itemSpawnPoint: {fileID: 0}
+  itemSpawnOffset: {x: 0, y: 0, z: 0}
+  spawnItemOnlyOnce: 1
   respawnPrefab: {fileID: 0}
   respawnPoint: {fileID: 0}
   currentInstance: {fileID: 0}
@@ -13171,6 +13220,15 @@ MonoBehaviour:
   audioSource: {fileID: 1012610026}
   pressVolume: 0.8
   pressPitchRange: {x: 0.97, y: 1.03}
+  playWallMoveSound: 1
+  wallMoveClips: []
+  wallMoveAudioSource: {fileID: 0}
+  wallMoveVolume: 0.8
+  wallMovePitchRange: {x: 0.92, y: 1.08}
+  wallMoveFadeIn: 0.12
+  wallMoveFadeOut: 0.18
+  wallMoveSoundStopDelay: 0.08
+  wallMoveDebugLog: 0
 --- !u!64 &1012610030
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -22357,9 +22415,25 @@ MonoBehaviour:
   outlineWidth: 10
   outlineMode: 1
   wall: {fileID: 568769138}
-  dropDistance: 3
+  moveWallOnPress: 1
+  moveDirection: 0
+  customDirection: {x: 0, y: -1, z: 0}
+  directionIsLocal: 0
+  moveDistance: 3
   movementSpeed: 2
   waitAtBottom: 2
+  keepOpen: 1
+  allowBallActivation: 1
+  minBallImpactSpeed: 0.2
+  ballActivationMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  requirePickupObject: 1
+  spawnItemOnPress: 0
+  itemPrefab: {fileID: 0}
+  itemSpawnPoint: {fileID: 0}
+  itemSpawnOffset: {x: 0, y: 0, z: 0}
+  spawnItemOnlyOnce: 1
   respawnPrefab: {fileID: 0}
   respawnPoint: {fileID: 0}
   currentInstance: {fileID: 0}
@@ -22371,6 +22445,15 @@ MonoBehaviour:
   audioSource: {fileID: 1795391354}
   pressVolume: 0.8
   pressPitchRange: {x: 0.97, y: 1.03}
+  playWallMoveSound: 1
+  wallMoveClips: []
+  wallMoveAudioSource: {fileID: 0}
+  wallMoveVolume: 0.8
+  wallMovePitchRange: {x: 0.92, y: 1.08}
+  wallMoveFadeIn: 0.12
+  wallMoveFadeOut: 0.18
+  wallMoveSoundStopDelay: 0.08
+  wallMoveDebugLog: 0
 --- !u!64 &1795391358
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -25767,11 +25850,11 @@ PrefabInstance:
       objectReference: {fileID: 955476246}
     - target: {fileID: 4522779709597660478, guid: 12c1bb88553bb434592a70e3a04e538b, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 1
+      value: 10.25
       objectReference: {fileID: 0}
     - target: {fileID: 4522779709597660478, guid: 12c1bb88553bb434592a70e3a04e538b, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1
+      value: 7.125
       objectReference: {fileID: 0}
     - target: {fileID: 4522779709597660478, guid: 12c1bb88553bb434592a70e3a04e538b, type: 3}
       propertyPath: m_LocalPosition.z

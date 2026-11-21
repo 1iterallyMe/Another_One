@@ -259,6 +259,17 @@ public class FPSController : MonoBehaviour
         maxSlopeAngle = Mathf.Clamp(maxSlopeAngle, 10f, 85f);
     }
 
+    /// <summary>
+    /// Принудительно задать горизонтальный угол взгляда.
+    /// Используется зиплайном: во время поездки контроллер выключен, но yaw нужно
+    /// синхронизировать, чтобы после отцепления камера не «прыгнула» обратно.
+    /// </summary>
+    public void SetYaw(float newYaw)
+    {
+        yaw = newYaw;
+        transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+    }
+
     void Look()
     {
         float mx = Input.GetAxis("Mouse X") * mouseSensitivity;

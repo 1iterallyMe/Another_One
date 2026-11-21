@@ -1,6 +1,7 @@
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -56,6 +57,19 @@ public class CreditsRoll : MonoBehaviour
     [Tooltip("Длительность появления и ухода, сек.")]
     [SerializeField, Min(0f)] private float fadeDuration = 0.8f;
 
+    [Header("Полоса прокрутки")]
+    [Tooltip("Необязательно: Image с типом Filled, заполняющаяся по мере прокрутки.")]
+    [SerializeField] private Image progressFill;
+
+    [Header("Версия")]
+    [Tooltip("Текст в углу экрана. Если пусто — версия не выводится.")]
+    [SerializeField] private TMP_Text versionText;
+    [SerializeField] private string versionPrefix = "ВЕРСИЯ ";
+
+    [Header("Звук")]
+    [Tooltip("Музыка титров. Если пусто, будет найден первый AudioSource в сцене.")]
+    [SerializeField] private AudioSource sceneMusic;
+
     private RectTransform viewport;
     private Vector2 initialPosition;
     private float startY;
@@ -77,17 +91,31 @@ public class CreditsRoll : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
+        if (versionText != null)
+            versionText.text = versionPrefix + Application.version;
+
+        if (sceneMusic == null)
+            sceneMusic = FindFirstObjectByType<AudioSource>();
+
+        if (sceneMusic != null)
+            sceneMusic.mute = MainMenu.MusicMuted;
+
         if (skipButton != null)
+        {
+            skipButton.onClick.RemoveListener(SkipToMenu);
             skipButton.onClick.AddListener(SkipToMenu);
+        }
 
         if (contentGroup != null)
         {
             contentGroup.alpha = 0f;
             contentGroup.interactable = false;
+            contentGroup.blocksRaycasts = false;
         }
 
         if (fadeOverlay != null)
         {
+            fadeOverlay.gameObject.SetActive(true);
             fadeOverlay.raycastTarget = false;
             SetOverlayAlpha(1f);
         }
@@ -114,6 +142,14 @@ public class CreditsRoll : MonoBehaviour
     private void Start()
     {
         StartCoroutine(FadeInRoutine());
+
+        StartCoroutine(BeginAfterLayoutRoutine());
+    }
+
+    private IEnumerator BeginAfterLayoutRoutine()
+    {
+        yield return null;
+        Canvas.ForceUpdateCanvases();
 
         if (playOnStart)
             Begin();
@@ -164,6 +200,8 @@ public class CreditsRoll : MonoBehaviour
     private bool Prepare()
     {
         ResolveReferences();
+
+        Canvas.ForceUpdateCanvases();
 
         if (creditsContent == null)
         {
@@ -216,6 +254,10 @@ public class CreditsRoll : MonoBehaviour
         travelTime = (endY - startY) / Mathf.Max(1f, scrollSpeed);
 
         creditsContent.anchoredPosition = new Vector2(initialPosition.x, startY);
+
+        if (progressFill != null)
+            progressFill.fillAmount = 0f;
+
         return true;
     }
 
@@ -248,10 +290,17 @@ public class CreditsRoll : MonoBehaviour
             elapsed += DeltaTime;
             float t = Mathf.Clamp01(elapsed / travelTime);
             creditsContent.anchoredPosition = new Vector2(initialPosition.x, Mathf.Lerp(startY, endY, t));
+
+            if (progressFill != null)
+                progressFill.fillAmount = t;
+
             yield return null;
         }
 
         creditsContent.anchoredPosition = new Vector2(initialPosition.x, endY);
+
+        if (progressFill != null)
+            progressFill.fillAmount = 1f;
 
         if (endDelay > 0f)
             yield return Wait(endDelay);
@@ -320,6 +369,12 @@ public class CreditsRoll : MonoBehaviour
 
         if (contentGroup != null)
             contentGroup.interactable = true;
+
+        if (skipButton != null && EventSystem.current != null)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+            EventSystem.current.SetSelectedGameObject(skipButton.gameObject);
+        }
 
         if (fadeOverlay != null)
             fadeOverlay.gameObject.SetActive(false);
