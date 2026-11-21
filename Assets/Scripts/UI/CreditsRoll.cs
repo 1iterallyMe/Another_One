@@ -2,6 +2,7 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
 /// Прокручивает титры снизу вверх и после окончания загружает сцену меню.
@@ -43,6 +44,18 @@ public class CreditsRoll : MonoBehaviour
     [SerializeField] private bool allowSkip = true;
     [SerializeField] private KeyCode skipKey = KeyCode.Escape;
 
+    [Header("Кнопка")]
+    [Tooltip("Необязательно: кнопка «Пропустить», сразу открывающая меню.")]
+    [SerializeField] private Button skipButton;
+
+    [Header("Появление")]
+    [Tooltip("Группа с содержимым титров — плавно проявляется при старте.")]
+    [SerializeField] private CanvasGroup contentGroup;
+    [Tooltip("Чёрная заливка: исчезает при старте и появляется перед открытием меню.")]
+    [SerializeField] private Image fadeOverlay;
+    [Tooltip("Длительность появления и ухода, сек.")]
+    [SerializeField, Min(0f)] private float fadeDuration = 0.8f;
+
     private RectTransform viewport;
     private Vector2 initialPosition;
     private float startY;
@@ -63,6 +76,21 @@ public class CreditsRoll : MonoBehaviour
         Time.timeScale = 1f;
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+
+        if (skipButton != null)
+            skipButton.onClick.AddListener(SkipToMenu);
+
+        if (contentGroup != null)
+        {
+            contentGroup.alpha = 0f;
+            contentGroup.interactable = false;
+        }
+
+        if (fadeOverlay != null)
+        {
+            fadeOverlay.raycastTarget = false;
+            SetOverlayAlpha(1f);
+        }
     }
 
     /// <summary>
@@ -85,6 +113,8 @@ public class CreditsRoll : MonoBehaviour
 
     private void Start()
     {
+        StartCoroutine(FadeInRoutine());
+
         if (playOnStart)
             Begin();
     }
@@ -264,10 +294,7 @@ public class CreditsRoll : MonoBehaviour
             return;
         }
 
-        if (loadAsync)
-            StartCoroutine(LoadSceneRoutine(sceneName));
-        else
-            SceneManager.LoadScene(sceneName);
+        StartCoroutine(LoadSceneWithFadeRoutine(sceneName));
     }
 
     private string ResolveMenuScene()
@@ -284,8 +311,69 @@ public class CreditsRoll : MonoBehaviour
         return null;
     }
 
-    private IEnumerator LoadSceneRoutine(string sceneName)
+    private IEnumerator FadeInRoutine()
     {
+        if (contentGroup != null)
+            contentGroup.blocksRaycasts = true;
+
+        yield return FadeRoutine(0f, 1f, 1f, 0f);
+
+        if (contentGroup != null)
+            contentGroup.interactable = true;
+
+        if (fadeOverlay != null)
+            fadeOverlay.gameObject.SetActive(false);
+    }
+
+    /// <summary>Плавно меняет прозрачность содержимого и чёрной заливки.</summary>
+    private IEnumerator FadeRoutine(float groupFrom, float groupTo, float overlayFrom, float overlayTo)
+    {
+        float duration = Mathf.Max(0.0001f, fadeDuration);
+
+        for (float elapsed = 0f; elapsed < duration; elapsed += Time.unscaledDeltaTime)
+        {
+            float progress = Mathf.Clamp01(elapsed / duration);
+
+            if (contentGroup != null)
+                contentGroup.alpha = Mathf.Lerp(groupFrom, groupTo, progress);
+
+            SetOverlayAlpha(Mathf.Lerp(overlayFrom, overlayTo, progress));
+
+            yield return null;
+        }
+
+        if (contentGroup != null)
+            contentGroup.alpha = groupTo;
+
+        SetOverlayAlpha(overlayTo);
+    }
+
+    private void SetOverlayAlpha(float alpha)
+    {
+        if (fadeOverlay == null)
+            return;
+
+        Color color = fadeOverlay.color;
+        color.a = alpha;
+        fadeOverlay.color = color;
+    }
+
+    private IEnumerator LoadSceneWithFadeRoutine(string sceneName)
+    {
+        if (fadeOverlay != null)
+        {
+            fadeOverlay.gameObject.SetActive(true);
+            fadeOverlay.raycastTarget = true;
+        }
+
+        yield return FadeRoutine(1f, 0f, 0f, 1f);
+
+        if (!loadAsync)
+        {
+            SceneManager.LoadScene(sceneName);
+            yield break;
+        }
+
         AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName);
 
         if (operation == null)
