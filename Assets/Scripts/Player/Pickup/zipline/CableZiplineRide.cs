@@ -36,6 +36,15 @@ public class CableZiplineRide : InteractableBase
     [SerializeField] private KeyCode forwardPlusYKey = KeyCode.W;
     [SerializeField] private KeyCode backwardMinusYKey = KeyCode.S;
 
+    [Header("Cable Route (forward/back)")]
+    [Tooltip("Move along a route between two points instead of vertical Y.")]
+    [SerializeField] private bool useCableRoute = false;
+    [SerializeField] private Transform routeStartPoint;
+    [SerializeField] private Transform routeEndPoint;
+    [SerializeField, Min(0.05f)] private float routeSpeed = 2.5f;
+
+    private float routeT;
+
     [Header("Exit Points (точки выхода рядом со столбом)")]
     [Tooltip("Точка выхода при выходе в верхней половине пути / у maxY.")]
     [SerializeField] private Transform upperExitPoint;
@@ -137,6 +146,12 @@ public class CableZiplineRide : InteractableBase
                 colliders[i].enabled = true;
         }
 
+        if (useCableRoute && routeStartPoint != null && routeEndPoint != null)
+        {
+            routeT = 0f;
+            transform.position = routeStartPoint.position;
+        }
+
         if (clampYOnActivate)
         {
             float clampedY = Mathf.Clamp(transform.position.y, minY, maxY);
@@ -154,12 +169,13 @@ public class CableZiplineRide : InteractableBase
         if (!isInstalled || IsMounted)
             return false;
 
-        return HasPower;
+        // Сесть можно и без питания, но движение вперёд/назад заблокировано в UpdateRouteMovement.
+        return true;
     }
 
     public override void Interact(PlayerInteractor interactor)
     {
-        if (interactor == null || !isInstalled || IsMounted || !HasPower)
+        if (interactor == null || !isInstalled || IsMounted)
             return;
 
         MountPlayer(interactor);
@@ -252,24 +268,32 @@ public class CableZiplineRide : InteractableBase
             return;
         }
 
-        if (!IsMoving && HasPower)
+        if (useCableRoute && routeStartPoint != null && routeEndPoint != null)
         {
-            if (Input.GetKeyDown(forwardPlusYKey))
-            {
-                StartMoveAlongY(+1, maxY);
-            }
-            else if (Input.GetKeyDown(backwardMinusYKey))
-            {
-                StartMoveAlongY(-1, minY);
-            }
+            UpdateRouteMovement();
         }
-
-        if (IsMoving)
+        else
         {
-            UpdateMovementY();
+            if (!IsMoving && HasPower)
+            {
+                if (Input.GetKeyDown(forwardPlusYKey))
+                {
+                    StartMoveAlongY(+1, maxY);
+                }
+                else if (Input.GetKeyDown(backwardMinusYKey))
+                {
+                    StartMoveAlongY(-1, minY);
+                }
+            }
+
+            if (IsMoving)
+            {
+                UpdateMovementY();
+            }
         }
 
         SyncRiderToZipline();
+        ReachHandToZipline();
     }
 
     private void StartMoveAlongY(int direction, float destinationY)
@@ -330,7 +354,7 @@ public class CableZiplineRide : InteractableBase
             }
             else
             {
-                riderTransform.position = transform.position + riderHangOffset;
+                riderTransform.position = hangPoint != null ? hangPoint.position : transform.position + riderHangOffset;
             }
         }
 
@@ -347,6 +371,7 @@ public class CableZiplineRide : InteractableBase
             riderCharController.enabled = prevCharControllerEnabled;
         }
 
+        ReleaseHandFromZipline();
         PlayRandomClip(dismountClips, dismountVolume);
 
         IsMounted = false;
@@ -368,6 +393,85 @@ public class CableZiplineRide : InteractableBase
             return lowerExitPoint;
 
         return upperExitPoint != null ? upperExitPoint : lowerExitPoint;
+    }
+
+    /// <summary>Continuous forward/back travel along a cable route. Requires generator power.</summary>
+    private void UpdateRouteMovement()
+    {
+        float input = 0f;
+        if (HasPower)
+        {
+            if (Input.GetKey(forwardPlusYKey)) input += 1f;
+            if (Input.GetKey(backwardMinusYKey)) input -= 1f;
+        }
+
+        if ((input > 0f && routeT >= 0.9999f) || (input < 0f && routeT <= 0.0001f))
+        {
+            if (IsMoving)
+            {
+                IsMoving = false;
+                MoveDirectionY = 0;
+                StopMoveLoopSound();
+                PlayRandomClip(moveStopClips, moveStopVolume);
+            }
+            return;
+        }
+
+        if (Mathf.Abs(input) <= 0.01f)
+        {
+            if (IsMoving)
+            {
+                IsMoving = false;
+                MoveDirectionY = 0;
+                StopMoveLoopSound();
+                PlayRandomClip(moveStopClips, moveStopVolume);
+            }
+            return;
+        }
+
+        if (!IsMoving)
+        {
+            IsMoving = true;
+            PlayRandomClip(moveStartClips, moveStartVolume);
+            StartMoveLoopSound();
+        }
+
+        float length = Vector3.Distance(routeStartPoint.position, routeEndPoint.position);
+        if (length <= 0.001f) return;
+
+        routeT = Mathf.Clamp01(routeT + input * (routeSpeed / length) * Time.deltaTime);
+        transform.position = Vector3.Lerp(routeStartPoint.position, routeEndPoint.position, routeT);
+        MoveDirectionY = input > 0f ? 1 : -1;
+    }
+
+    /// <summary>Отпустить руку с держалки после поездки.</summary>
+    /// <summary>
+    /// Ручной сдвиг по маршруту (для отладки/внешнего управления). Без питания — ничего не делает.
+    /// input: +1 вперёд, -1 назад; deltaTime — секунды.
+    /// </summary>
+    public void MoveRoute(float input, float deltaTime)
+    {
+        if (!HasPower || routeStartPoint == null || routeEndPoint == null)
+            return;
+
+        float length = Vector3.Distance(routeStartPoint.position, routeEndPoint.position);
+        if (length <= 0.001f)
+            return;
+
+        routeT = Mathf.Clamp01(routeT + input * (routeSpeed / length) * deltaTime);
+        transform.position = Vector3.Lerp(routeStartPoint.position, routeEndPoint.position, routeT);
+        MoveDirectionY = input > 0f ? 1 : (input < 0f ? -1 : 0);
+    }
+
+    private void ReleaseHandFromZipline()
+    {
+        HandController hand = FindFirstObjectByType<HandController>();
+        if (hand == null) return;
+
+        System.Type t = hand.GetType();
+        MethodInfo clear = t.GetMethod("ClearTarget", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (clear != null && clear.GetParameters().Length == 0)
+            clear.Invoke(hand, null);
     }
 
     private void StartMoveLoopSound()

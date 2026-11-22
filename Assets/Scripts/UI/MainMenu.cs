@@ -18,7 +18,7 @@ public class MainMenu : MonoBehaviour
     [Tooltip("Сцена, которая загружается по кнопке «Играть». Должна быть в Build Settings.")]
     [SerializeField] private string gameSceneName = "Amir";
     [Tooltip("Сцена титров. Должна быть в Build Settings.")]
-    [SerializeField] private string creditsSceneName = "Сredits_Scene";
+    [SerializeField] private string creditsSceneName = "Credits_Scene";
 
     [Header("Кнопки")]
     [SerializeField] private Button playButton;

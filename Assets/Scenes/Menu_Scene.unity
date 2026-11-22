@@ -4112,7 +4112,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b295b97466534e4c84a657fe1d303f26, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTrigger
-  sceneName: "\u0421redits_Scene"
+  sceneName: "Credits_Scene"
   detectByPlayerComponent: 1
   playerTag: Player
   playerMask:
@@ -5559,7 +5559,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MainMenu
   gameSceneName: Amir
-  creditsSceneName: "\u0421redits_Scene"
+  creditsSceneName: "Credits_Scene"
   playButton: {fileID: 1361986448}
   creditsButton: {fileID: 523823126}
   controlsButton: {fileID: 656178742}

@@ -1,8 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Канистра с бензином: переносится через PickupObject, при поднесении к горловине генератора
-/// поворачивается под углом заливки над генератором, заливает топливо со звуком и эффектом, а затем опустошается.
+/// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ PickupObject, пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+/// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody), typeof(PickupObject))]
@@ -11,22 +11,22 @@ public class FuelCanister : MonoBehaviour
     [Header("Fuel Settings")]
     [SerializeField, Min(0.01f)] private float fuelCapacity = 100f;
     [SerializeField, Min(0f)] private float initialFuel = 100f;
-    [Tooltip("Через сколько секунд после начала заливки можно прервать процесс клавишей E.")]
+    [Tooltip("пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ E.")]
     [SerializeField, Min(0f)] private float cancelLockDuration = 0.2f;
     [SerializeField] private KeyCode cancelKey = KeyCode.E;
 
-    [Header("Nozzle & Pour Pose (наклон над генератором)")]
-    [Tooltip("Позиция кончика носика в локальных координатах канистры (X — вправо, Y — вверх, Z — вперёд). Эта точка совмещается с PourTargetPoint.")]
+    [Header("Nozzle & Pour Pose (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)")]
+    [Tooltip("пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (X пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ, Y пїЅ пїЅпїЅпїЅпїЅпїЅ, Z пїЅ пїЅпїЅпїЅпїЅпїЅ). пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ PourTargetPoint.")]
     [SerializeField] private Vector3 nozzleLocalOffset = Vector3.zero;
-    [Tooltip("Поворот/наклон канистры при заливке (в градусах) относительно поворота PourTargetPoint. Например, 135-150 по X или Z переворачивает канистру под углом слива.")]
+    [Tooltip("пїЅпїЅпїЅпїЅпїЅпїЅпїЅ/пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ PourTargetPoint. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, 135-150 пїЅпїЅ X пїЅпїЅпїЅ Z пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ.")]
     [SerializeField] private Vector3 pourTiltEuler = new Vector3(135f, 0f, 0f);
-    [Tooltip("Если включено — поворот при заливке считается от мировых осей (с учётом Y PourTargetPoint), иначе полностью от поворота PourTargetPoint.")]
+    [Tooltip("пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ (пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ Y PourTargetPoint), пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ PourTargetPoint.")]
     [SerializeField] private bool alignPourYawToTarget = true;
     [SerializeField, Min(0.1f)] private float moveToPourSpeed = 8f;
     [SerializeField, Min(0.1f)] private float rotateToPourSpeed = 10f;
 
     [Header("Pour Visuals & Sound")]
-    [Tooltip("Опциональный объект струи (ParticleSystem или меш), включается во время заливки.")]
+    [Tooltip("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ (ParticleSystem пїЅпїЅпїЅ пїЅпїЅпїЅ), пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ.")]
     [SerializeField] private GameObject pourStreamObject;
     [SerializeField] private AudioSource pourAudioSource;
     [SerializeField] private AudioClip pourLoopClip;
@@ -186,6 +186,9 @@ public class FuelCanister : MonoBehaviour
         rb.isKinematic = previousKinematic;
         if (!rb.isKinematic)
         {
+            // РџРѕРґРЅРёРјР°РµРј РєР°РЅРёСЃС‚СЂСѓ РЅР°Рґ РєРѕР»Р»Р°Р№РґРµСЂРѕРј РіРµРЅРµСЂР°С‚РѕСЂР°, РёРЅР°С‡Рµ РїСЂРё
+            // РІРєР»СЋС‡РµРЅРёРё С„РёР·РёРєРё РґРµРїРµРЅРµС‚СЂР°С†РёСЏ РјРѕР¶РµС‚ РѕС‚Р±СЂРѕСЃРёС‚СЊ РµС‘ РґР°Р»РµРєРѕ.
+            rb.position = transform.position + Vector3.up * 0.35f;
             rb.useGravity = previousUseGravity || true;
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;

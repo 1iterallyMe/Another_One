@@ -18,6 +18,9 @@ public class FuelGenerator : MonoBehaviour
     [Tooltip("Если включено — заливка начнётся только когда канистру поднесли к горловине, даже если игрок отпустит её рядом.")]
     [SerializeField] private bool allowUnheldCanisterInZone = true;
 
+    [Tooltip("Начинать заливку автоматически, когда канистра просто находится в зоне. Выключено: только по E.")]
+    [SerializeField] private bool autoStartPouringFromHeldCanister = true;
+
     [Header("Engine Audio")]
     [SerializeField] private AudioSource engineAudioSource;
     [SerializeField] private AudioClip engineStartClip;
@@ -97,6 +100,9 @@ public class FuelGenerator : MonoBehaviour
 
         if (currentCanister == null)
         {
+            if (!autoStartPouringFromHeldCanister)
+                return;
+
             FuelCanister candidate = FindCanisterInZone(zoneCenter);
             if (candidate != null)
             {
@@ -166,6 +172,22 @@ public class FuelGenerator : MonoBehaviour
         StartEngine();
     }
 
+    /// <summary>Начать заливку из канистры, которую игрок держит (по нажатию E).</summary>
+    public bool BeginPouringHeldCanister(FuelCanister canister)
+    {
+        if (IsFueled || canister == null || !canister.HasFuel || canister.IsPouring)
+            return false;
+
+        FuelCapacity = canister.FuelCapacity;
+        CurrentFuel = FuelCapacity * (1f - canister.FuelNormalized);
+
+        if (!canister.BeginPouring(this, pourTargetPoint))
+            return false;
+
+        currentCanister = canister;
+        return true;
+    }
+
     public void CancelPouring()
     {
         if (currentCanister == null)
@@ -198,6 +220,47 @@ public class FuelGenerator : MonoBehaviour
         }
 
         EngineStarted?.Invoke(this);
+    }
+
+    // === Bridge for the survival system (GeneratorController) ==============
+    /// <summary>Add fuel directly (E-refuel) and start the engine.</summary>
+    public void AddFuel(float amount)
+    {
+        if (amount <= 0f) return;
+
+        CurrentFuel = Mathf.Clamp(CurrentFuel + amount, 0f, FuelCapacity);
+        if (CurrentFuel > 0f)
+        {
+            IsFueled = true;
+            StartEngine();
+        }
+    }
+
+    /// <summary>Consume fuel over time; stops the engine when the tank is empty.</summary>
+    public float ConsumeFuel(float amount)
+    {
+        if (amount <= 0f || CurrentFuel <= 0f) return 0f;
+
+        float used = Mathf.Min(CurrentFuel, amount);
+        CurrentFuel -= used;
+
+        if (CurrentFuel <= 0f)
+        {
+            CurrentFuel = 0f;
+            IsFueled = false;
+            StopEngine();
+        }
+
+        return used;
+    }
+
+    /// <summary>Stop the engine immediately.</summary>
+    public void StopEngine()
+    {
+        if (!IsRunning) return;
+
+        IsRunning = false;
+        if (engineAudioSource != null) engineAudioSource.Stop();
     }
 
     public void SetCableConnected(bool connected)
