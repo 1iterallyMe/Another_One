@@ -85,14 +85,40 @@ public class PlayerInteractor : MonoBehaviour
             if (hit.collider.transform.IsChildOf(transform)) continue;
             if (IsHeldCollider(hit.collider)) continue;
 
-            IInteractable candidate = hit.collider.GetComponentInParent<IInteractable>();
-            if (candidate == null || !candidate.CanInteract(this)) continue;
+            IInteractable candidate = ResolveInteractable(hit.collider);
+            if (candidate == null) continue;
 
             found = candidate;
             bestDistance = hit.distance;
         }
 
         SetFocus(found);
+    }
+
+    /// <summary>
+    /// Выбирает доступный IInteractable на объекте.
+    ///
+    /// На одном GameObject может быть несколько реализаций интерфейса: например, у
+    /// генератора это GeneratorController (заправка) и PickupObject (поднять).
+    /// Раньше брался только первый найденный компонент, и если его CanInteract
+    /// возвращал false (нет канистры в руках), объект целиком считался
+    /// неинтерактивным — поэтому генератор нельзя было поднять.
+    ///
+    /// Метод не аллоцирует (два GetComponentInParent), поэтому безопасен для Update.
+    /// </summary>
+    IInteractable ResolveInteractable(Collider col)
+    {
+        IInteractable primary = col.GetComponentInParent<IInteractable>();
+        if (primary != null && primary.CanInteract(this))
+            return primary;
+
+        // Запасной вариант: «поднимаемый» предмет на том же объекте имеет приоритет,
+        // если основной интерактор сейчас недоступен.
+        IPhysicsHoldable holdable = col.GetComponentInParent<IPhysicsHoldable>();
+        if (holdable != null && holdable.CanInteract(this))
+            return holdable;
+
+        return null;
     }
 
     bool IsHeldCollider(Collider col)
@@ -124,7 +150,8 @@ public class PlayerInteractor : MonoBehaviour
         // генератор — заправляем из канистры, зиплайн — начинаем поездку.
         if (Focused is GeneratorController generator)
         {
-            generator.TryRefuel();
+            // E по генератору использует канистру, которую игрок держит в руках.
+            generator.Interact(this);
             return;
         }
 
