@@ -127,13 +127,17 @@
   (`Couldn't create a Convex Mesh ... 256 polygons`, к зиплайну не относится).
   **Приёмка не закрыта полностью:** сессия Play Mode прерывалась из-за
   параллельных правок ассетов (см. п. 10.6), `Alexander` не проверялся.
-- **Статус: ОТОЗВАН (2026-11-22).** Симптом не воспроизводится: в `Amir` больше нет
-  ни одного `CableZiplineRide` (`FindObjectsByType` → **0**, 0 ссылок на guid
-  `4dcf9ad4…`), инстанс зиплайна исчез вместе с пересборкой `ZiplineSystem.prefab`.
-  Правка `powerWithoutGenerator` в базовом префабе затронула бы **только `Alexander`**,
-  где генератор назначен, и сняла бы там power-gate — то есть ухудшила бы дизайн
-  и ничего не починила в `Amir`. Вместо фикса заведён **BUG-028** (восстановить
-  инстанс); после его закрытия BUG-001 подлежит пере-проверке.
+- **Статус: ИСПРАВЛЕН (2026-11-22) — вариант B.** Хронология: сначала симптом
+  «исчез» (в `Amir` было 0 экземпляров `CableZiplineRide`) → BUG-001 был **отозван**
+  и заведён **BUG-028** (вернуть инстанс). После восстановления инстанса
+  (`aa286a8`) симптом вернулся (`generator = null`, `HasPower = false`), поэтому
+  фикс применён: override `powerWithoutGenerator: 1` **в инстансе**
+  `Assets/Prefabs/ZiplineSystem.prefab` (`+4` строки, коммит **`731dca4`**).
+  Базовый префаб не тронут → в `Alexander` power-gate сохранён.
+- **Проверка (7/7):** `refresh_unity` → Console 0 error; Play Mode `Amir` →
+  `HasPower = true`, `useCableRoute = true`, `MoveRoute(+1, 0.2)` → `delta = 0.440 м`,
+  обратно `−0.440 м`; Console: **0 error / 0 warning**. В `Alexander` подтверждено
+  `powerWithoutGenerator = false` (не затронут).
 
 ---
 
@@ -250,7 +254,12 @@
 - **Исправление:** восстановить `ZiplineSystem.prefab` из снимка (текущая 44-КБ версия
   предварительно копируется в `/tmp/prebake/`), затем Play Mode `Amir`.
 - **Риск исправления:** Medium — возврат известного состояния, но перезапись текущей версии.
-- **Статус:** ОТКРЫТ, ждёт восстановления из снимка `01:51` (см. выше, почему не `7fcfd01`).
+- **Статус: ЗАКРЫТ (2026-11-22).** Восстановлено из снимка `01:51` — коммит
+  **`aa286a8`**; `.meta` не менялся (GUID `d38697d9…` сохранён), текущая 44-КБ
+  версия сохранена в `/tmp/prebake/ZiplineSystem.prefab.current-44272`.
+  Проверка: `refresh_unity` → Console 0 error; Play Mode `Amir` →
+  `CableZiplineRide` = **1** (`Zipline_System/ZiplineRig`), `useCableRoute = true`,
+  `scale = (1,1,1)`, `nullMesh = 0`.
 
 ---
 
