@@ -75,8 +75,8 @@
 | Critical | 1 |
 | High | 8 |
 | Medium | 8 |
-| Low | 12 |
-| **Итого** | **29** |
+| Low | 13 |
+| **Итого** | **30** |
 
 Дополнительно: 2 класса мёртвого кода без единого размещения (`WireConnector`,
 `ZiplineController`, ~418 строк), 6 скриптов в кодировке CP1251.
@@ -160,6 +160,19 @@
   `solverIterations` до 3–5; обновлять симуляцию раз в 2–3 кадра в покое;
   останавливать `LateUpdate`, когда предмет в инвентаре.
 - **Риск исправления:** Medium (визуальное поведение троса).
+- **Статус: ИСПРАВЛЕН (2026-11-22) — коммит `26b40bb`.** Сделано ровно два
+  изменения в `PhysicalCable.cs`: (1) разрешение коллизий и `ClampAboveSurface`
+  вынесены из цикла солвера — теперь считаются **один раз за кадр** вместо
+  `solverIterations` (10) раз: 260 → **26** вызовов; (2) `Physics.OverlapSphere`
+  (аллокация) заменён на `Physics.OverlapSphereNonAlloc` с переиспользуемым
+  буфером `readonly Collider[8]` (сериализуемые поля не добавлялись).
+  Ожидаемое снижение числа физзапросов ≈ **10×**, аллокаций — до нуля.
+- **Проверка:** компиляция OK; Play Mode `Amir` → `CableRope`: `ready=true`,
+  28 узлов, все `finite`, `y ∈ [0.025 .. 0.090]` (стабильно, без «взрыва»),
+  `LineRenderer posCount=28`; **Console: 0 error**.
+  ⚠️ Полный gate «0 error/0 warning» не выставлен: в сцене всплыли **15 warning**
+  из `WallLiftSwitch.cs:444` — это отдельный дефект, зарегистрирован как
+  **BUG-030** (не связан с `PhysicalCable`).
 
 ### [BUG-003] `FuelGenerator`: `Physics.OverlapSphere` каждый кадр
 
@@ -399,6 +412,23 @@
 | BUG-024 | 30 вызовов в 12 файлах | смешаны legacy `Input.GetAxis/GetKey` и новый Input System (`Mouse.current`) — работает только из-за `activeInputHandler: 2` | унифицировать на `InputSystem_Actions.inputactions` |
 | BUG-025 | `PhysicsHoldController.cs.meta` | GUID `b2c3d4e5f60718293a4b5c6d7e8f901a` — «рукописный» паттерн вместо случайного (остальные GUID случайные) | не трогать без необходимости; зафиксировать риск коллизии |
 | BUG-026 | `FuelCanister.cs:192`, `VacuumCablePlug.cs:325` | `useGravity = previousUseGravity \|\| true` — выражение всегда даёт `true`, исходное значение игнорируется | заменить на `previousUseGravity` |
+
+---
+
+### [BUG-030] `WallLiftSwitch` спамит warning при сбросе позы кнопки
+
+- **Файл:** `WallLiftSwitch.cs:433-445` (`ResetButtonPose`), вызов — строка **444**
+- **Суть:** Play Mode `Amir` при старте сцены — **15** warning
+  `Animator does not have an AnimatorController`. Гвард на
+  `runtimeAnimatorController == null` в коде есть (`:435`), значит контроллер
+  назначен, но нужного состояния/клипа в нём нет → `Animator.Play(...)` ругается,
+  а визуальный отклик нажатия кнопки не проигрывается.
+- **Подтверждение:** Console после `clear` в Play Mode `Amir`: 15 записей,
+  все из `WallLiftSwitch.cs:444`.
+- **Исправление:** проверять наличие состояния (`HasState`) либо не вызывать
+  `Play()` при отсутствии клипа; при необходимости — назначить контроллер в префабы кнопок.
+- **Риск исправления:** Low.
+- **Статус:** ОТКРЫТ (найдено при проверке BUG-002).
 
 ---
 
