@@ -42,6 +42,10 @@ public class PhysicalCable : MonoBehaviour
     private Vector3[] previousNodes;
     private bool ready;
 
+    // Переиспользуемый буфер: Physics.OverlapSphere() аллоцировал новый массив на
+    // каждый вызов (до 260 раз за кадр) → постоянный GC. См. BUG-002.
+    private readonly Collider[] overlapBuffer = new Collider[8];
+
     public bool IsReady => ready;
     public float TotalLength => totalLength;
     public Transform EndA => endA;
@@ -214,18 +218,20 @@ public class PhysicalCable : MonoBehaviour
                 }
             }
 
-            if (collideWithEnvironment)
-            {
-                float rayStartY = Mathf.Max(a.y, b.y) + 0.5f;
-                for (int i = 1; i < last; i++)
-                {
-                    ResolveCollision(i);
-                    nodes[i] = ClampAboveSurface(nodes[i], rayStartY);
-                }
-            }
-
             nodes[0] = a;
             nodes[last] = b;
+        }
+
+        // Коллизии и «пол» считаем ОДИН раз за кадр, а не в каждой итерации солвера:
+        // это убирает ~90% физических запросов без видимой разницы в поведении троса.
+        if (collideWithEnvironment)
+        {
+            float rayStartY = Mathf.Max(a.y, b.y) + 0.5f;
+            for (int i = 1; i < last; i++)
+            {
+                ResolveCollision(i);
+                nodes[i] = ClampAboveSurface(nodes[i], rayStartY);
+            }
         }
     }
 
@@ -256,10 +262,10 @@ public class PhysicalCable : MonoBehaviour
         if (!Physics.CheckSphere(to, radius, collisionMask, QueryTriggerInteraction.Ignore))
             return;
 
-        Collider[] overlaps = Physics.OverlapSphere(to, radius, collisionMask, QueryTriggerInteraction.Ignore);
-        for (int i = 0; i < overlaps.Length; i++)
+        int overlapCount = Physics.OverlapSphereNonAlloc(to, radius, overlapBuffer, collisionMask, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < overlapCount; i++)
         {
-            Collider col = overlaps[i];
+            Collider col = overlapBuffer[i];
             if (col == null)
                 continue;
 
