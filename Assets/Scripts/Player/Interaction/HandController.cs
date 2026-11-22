@@ -28,10 +28,14 @@ public class HandController : MonoBehaviour
     [SerializeField] private Vector3 inventoryEulerOffset = Vector3.zero;
     [SerializeField] private float attachSmoothTime = 0.06f;
 
-    private enum HandMode { Empty, Inventory, Physics }
+    private enum HandMode { Empty, Inventory, Physics, Ride }
 
     private HandMode mode = HandMode.Empty;
     private Transform physicsTarget;
+
+    // Захват держалки зиплайна: рука тянется к заданной мировой точке.
+    private Vector3 rideTarget;
+    private bool hasRideTarget;
 
     private Vector3 smoothedPos;
     private Quaternion smoothedRot;
@@ -90,6 +94,8 @@ public class HandController : MonoBehaviour
 
     void HandleHoldStarted(IPhysicsHoldable held)
     {
+        if (mode == HandMode.Ride) return;
+
         var component = held as MonoBehaviour;
         physicsTarget = component != null ? component.transform : null;
         if (physicsTarget == null) return;
@@ -119,7 +125,37 @@ public class HandController : MonoBehaviour
 
     void HandleEquippedChanged(MonoBehaviour item)
     {
-        if (mode == HandMode.Physics) return;
+        if (mode == HandMode.Physics || mode == HandMode.Ride) return;
+        mode = (inventory != null && inventory.HasEquipped) ? HandMode.Inventory : HandMode.Empty;
+    }
+
+    /// <summary>Рука тянется к мировой точке (держалка зиплайна).</summary>
+    public void SetTarget(Vector3 worldPosition)
+    {
+        rideTarget = worldPosition;
+        hasRideTarget = true;
+        mode = HandMode.Ride;
+        returnTimer = 0f;
+
+        if (shoulderPivot != null && !initialized)
+        {
+            smoothedRot = shoulderPivot.rotation;
+            initialized = true;
+        }
+    }
+
+    /// <summary>Отпустить держалку и вернуть руку в анимационную позу.</summary>
+    public void ClearTarget()
+    {
+        if (!hasRideTarget) return;
+
+        hasRideTarget = false;
+        if (shoulderPivot != null)
+        {
+            lastPhysicsRot = shoulderPivot.rotation;
+            returnTimer = returnDuration;
+        }
+
         mode = (inventory != null && inventory.HasEquipped) ? HandMode.Inventory : HandMode.Empty;
     }
 
@@ -127,6 +163,13 @@ public class HandController : MonoBehaviour
     {
         if (shoulderPivot == null) shoulderPivot = handObject;
         if (handObject == null && shoulderPivot == null) return;
+
+        // RIDE: рука держится за держалку зиплайна.
+        if (mode == HandMode.Ride && hasRideTarget)
+        {
+            AimShoulderAt(rideTarget);
+            return;
+        }
 
         // INVENTORY: предмет уже висит на lightPoint.
         // Если handObject — отдельная кисть (не родитель lightPoint), притягиваем её к lightPoint.
@@ -202,5 +245,47 @@ public class HandController : MonoBehaviour
             shoulderPivot.rotation = Quaternion.Slerp(lastPhysicsRot, animRot, t);
         }
         // Иначе — не трогаем Transform: рукой управляет Animator.
+    }
+
+    /// <summary>Довернуть плечо так, чтобы кисть указывала на мировую точку.</summary>
+    private void AimShoulderAt(Vector3 aimPos)
+    {
+        if (shoulderPivot == null) return;
+
+        Vector3 shoulderPos = shoulderPivot.position;
+        Vector3 toAim = aimPos - shoulderPos;
+        if (toAim.sqrMagnitude < 0.000001f) return;
+
+        Vector3 aimDir = toAim.normalized;
+
+        Vector3 armLocalDir = Vector3.down;
+        if (lightPoint != null)
+        {
+            armLocalDir = shoulderPivot.InverseTransformPoint(lightPoint.position);
+            if (armLocalDir.sqrMagnitude < 0.000001f) armLocalDir = Vector3.down;
+            armLocalDir.Normalize();
+        }
+
+        Quaternion baseRot = shoulderPivot.rotation;
+        Vector3 up = playerCamera != null ? playerCamera.transform.up : Vector3.up;
+        if (Mathf.Abs(Vector3.Dot(aimDir, up)) > 0.999f) up = Vector3.forward;
+
+        Quaternion lookRot = Quaternion.LookRotation(aimDir, up);
+        Quaternion armAxisDelta = Quaternion.FromToRotation(Vector3.forward, armLocalDir);
+        Quaternion desiredRot = lookRot * Quaternion.Inverse(armAxisDelta);
+        Quaternion clampedRot = Quaternion.RotateTowards(baseRot, desiredRot, maxReachAngle);
+
+        if (!initialized)
+        {
+            smoothedRot = baseRot;
+            initialized = true;
+        }
+
+        float t = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.0001f, followSmoothTime));
+        smoothedRot = Quaternion.Slerp(smoothedRot, clampedRot, t);
+        shoulderPivot.rotation = smoothedRot;
+
+        lastPhysicsRot = smoothedRot;
+        returnTimer = returnDuration;
     }
 }

@@ -76,7 +76,7 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
     private const float MaxThrowSpeed = 30f;
 
     public override string InteractionPrompt => IsHeavy ? "Тащить" : "Взять";
-    public override bool CanInteract(PlayerInteractor interactor) => !IsHeld;
+    public override bool CanInteract(PlayerInteractor interactor) => isActiveAndEnabled && !IsHeld;
 
     public override void Interact(PlayerInteractor interactor)
         => interactor.PhysicsHold.BeginHold(this);

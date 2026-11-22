@@ -124,9 +124,9 @@ public class ZiplineController : MonoBehaviour, IInteractable
             return false;
         }
 
-        if (generator == null || !generator.IsPowered)
+        if (generator == null || !generator.HasPower)
         {
-            Debug.Log("[ZiplineController] Генератор выключен — зиплайн не работает.", this);
+            Debug.Log("[ZiplineController] Нет питания (генератор выключен или провод не подключён) — зиплайн не работает.", this);
             return false;
         }
 
@@ -298,12 +298,12 @@ public class ZiplineController : MonoBehaviour, IInteractable
     // ---------------------------------------------------------------------
 
     public string InteractionPrompt =>
-        generator != null && generator.IsPowered ? ridePrompt : unpoweredPrompt;
+        generator != null && generator.HasPower ? ridePrompt : unpoweredPrompt;
 
     public bool CanInteract(PlayerInteractor interactor)
     {
         if (!isActiveAndEnabled || isRiding || interactor == null) return false;
-        if (generator == null || !generator.IsPowered) return false;
+        if (generator == null || !generator.HasPower) return false;
         if (startPoint == null) return false;
 
         // Фокус появляется только рядом со стартом — иначе игрок «видел» бы зиплайн

@@ -1,19 +1,27 @@
 using UnityEngine;
 
 /// <summary>
-/// Собранный зиплайн (префаб): при поднесении к коллайдеру или тросу/точке установки
-/// автоматически крепится, проигрывает звук, включает зиплайн на тросе и удаляет предмет из рук.
+/// РЎРѕР±СЂР°РЅРЅР°СЏ СЂСѓС‡РєР° Р·РёРїР»Р°Р№РЅР°. РљРѕРіРґР° РёРіСЂРѕРє РїРѕРґРЅРѕСЃРёС‚ РµС‘ Рє С‚СЂРѕСЃСѓ, СЂСѓС‡РєР°
+/// В«Р·Р°С‰С‘Р»РєРёРІР°РµС‚СЃСЏВ» РЅР° РєР°РЅР°С‚Рµ (РІРµСЂС…РЅСЏСЏ С‡Р°СЃС‚СЊ СЃ СЂРѕР»РёРєР°РјРё Р»РѕР¶РёС‚СЃСЏ РЅР° С‚СЂРѕСЃ),
+/// СЃС‚Р°РЅРѕРІРёС‚СЃСЏ РєРёРЅРµРјР°С‚РёС‡РµСЃРєРѕР№ Рё РїСЂРµРІСЂР°С‰Р°РµС‚СЃСЏ РІ РёРЅС‚РµСЂР°РєС‚РёРІРЅСѓСЋ СЂСѓС‡РєСѓ,
+/// Р·Р° РєРѕС‚РѕСЂСѓСЋ РјРѕР¶РЅРѕ СЃС…РІР°С‚РёС‚СЊСЃСЏ (СЃРј. <see cref="CableZiplineRide"/>).
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody), typeof(PickupObject))]
 public class AssembledZipline : MonoBehaviour
 {
-    [Header("Mount / Attach Trigger")]
-    [Tooltip("Коллайдер точки крепления на тросе/столбе (опционально).")]
-    [SerializeField] private Collider mountTargetCollider;
-    [Tooltip("Радиус срабатывания при поднесении к точке крепления или линии троса (м).")]
-    [SerializeField, Min(0.1f)] private float attachRadius = 2.0f;
-    [Tooltip("Необязательно: точное имя объекта CableZiplineRide в сцене. Если пусто — берётся первый/ближайший CableZiplineRide.")]
+    [Header("Cable Attach")]
+    [Tooltip("РњР°СЂРєРµСЂ С‚СЂРѕСЃР°. Р•СЃР»Рё РїСѓСЃС‚Рѕ вЂ” РёС‰РµС‚СЃСЏ РІ СЃС†РµРЅРµ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё.")]
+    [SerializeField] private ZiplineCableRoute cableRoute;
+    [Tooltip("РўРѕС‡РєР° СЂСѓС‡РєРё, РєРѕС‚РѕСЂР°СЏ РґРѕР»Р¶РЅР° РѕРєР°Р·Р°С‚СЊСЃСЏ РЅР° С‚СЂРѕСЃРµ (С†РµРЅС‚СЂ СЂРѕР»РёРєРѕРІ).")]
+    [SerializeField] private Transform cableAnchor;
+    [Tooltip("Р Р°РґРёСѓСЃ, РІ РєРѕС‚РѕСЂРѕРј СЂСѓС‡РєР° РїСЂРёС‚СЏРіРёРІР°РµС‚СЃСЏ Рє С‚СЂРѕСЃСѓ, Рј.")]
+    [SerializeField, Min(0.1f)] private float attachRadius = 3f;
+    [Tooltip("РџСЂРёС‚СЏРіРёРІР°С‚СЊ Рє Р±Р»РёР¶Р°Р№С€РµР№ С‚РѕС‡РєРµ С‚СЂРѕСЃР°, Р° РЅРµ РІСЃРµРіРґР° Рє РЅР°С‡Р°Р»Сѓ.")]
+    [SerializeField] private bool snapToNearestPoint = true;
+
+    [Header("Legacy Ride (optional)")]
+    [Tooltip("РРјСЏ РѕР±СЉРµРєС‚Р° СЃ CableZiplineRide, РµСЃР»Рё РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ СЃС‚Р°СЂР°СЏ СЃС…РµРјР° СЃ РѕС‚РґРµР»СЊРЅС‹Рј ZiplineRig.")]
     [SerializeField] private string targetRideObjectName = "";
 
     [Header("Attach Sound")]
@@ -22,13 +30,26 @@ public class AssembledZipline : MonoBehaviour
     [SerializeField] private Vector2 attachPitchRange = new Vector2(0.96f, 1.04f);
 
     private PickupObject pickupObject;
-    private Collider[] ownColliders;
+    private Rigidbody rb;
     private bool isAttached;
 
     private void Awake()
     {
         pickupObject = GetComponent<PickupObject>();
-        ownColliders = GetComponentsInChildren<Collider>(true);
+        rb = GetComponent<Rigidbody>();
+
+        if (cableAnchor == null)
+        {
+            Transform found = transform.Find("Anchors/CableAnchor");
+            if (found == null) found = transform.Find("CableAnchor");
+            cableAnchor = found;
+        }
+
+        if (cableAnchor == null)
+            cableAnchor = transform;
+
+        if (cableRoute == null)
+            cableRoute = FindFirstObjectByType<ZiplineCableRoute>();
     }
 
     private void Update()
@@ -36,59 +57,186 @@ public class AssembledZipline : MonoBehaviour
         if (isAttached)
             return;
 
-        CableZiplineRide targetRide = FindTargetRide();
-        if (targetRide == null)
+        if (cableRoute == null)
+        {
+            cableRoute = FindFirstObjectByType<ZiplineCableRoute>();
+            if (cableRoute == null)
+                return;
+        }
+
+        if (!cableRoute.IsValid)
             return;
 
-        if (IsNearMountTarget(targetRide))
+        Vector3 anchorPosition = cableAnchor.position;
+        if (!IsNearCable(anchorPosition))
+            return;
+
+        Vector3 cablePoint;
+        float routeProgress = snapToNearestPoint
+            ? cableRoute.FindClosestProgress(anchorPosition, out cablePoint)
+            : StartProgress(out cablePoint);
+
+        AttachToCable(cablePoint, routeProgress);
+    }
+
+    private float StartProgress(out Vector3 point)
+    {
+        point = cableRoute.GetPointAt(0f);
+        return 0f;
+    }
+
+    /// <summary>
+    /// Р‘С‹СЃС‚СЂР°СЏ РїСЂРѕРІРµСЂРєР° РїРѕ РїСЂСЏРјРѕР№ РјРµР¶РґСѓ РєРѕРЅС†Р°РјРё С‚СЂРѕСЃР°, С‡С‚РѕР±С‹ РЅРµ СЃРµРјРїР»РёС‚СЊ
+    /// РєСЂРёРІСѓСЋ РєР°Р¶РґС‹Р№ РєР°РґСЂ, РєРѕРіРґР° СЂСѓС‡РєР° Р»РµР¶РёС‚ РґР°Р»РµРєРѕ.
+    /// </summary>
+    private bool IsNearCable(Vector3 worldPosition)
+    {
+        if (cableRoute == null || !cableRoute.IsValid)
+            return false;
+
+        Vector3 start = cableRoute.StartPoint.position;
+        Vector3 end = cableRoute.EndPoint.position;
+        Vector3 chord = end - start;
+        float lengthSqr = chord.sqrMagnitude;
+
+        if (lengthSqr <= 0.0001f)
+            return (worldPosition - start).sqrMagnitude <= attachRadius * attachRadius;
+
+        float t = Vector3.Dot(worldPosition - start, chord) / lengthSqr;
+        t = Mathf.Clamp01(t);
+        Vector3 chordPoint = start + chord * t;
+
+        float roughRadius = attachRadius + 0.6f;
+        return (chordPoint - worldPosition).sqrMagnitude <= roughRadius * roughRadius;
+    }
+
+    private void AttachToCable(Vector3 cablePoint, float routeProgress)
+    {
+        if (isAttached || cableRoute == null)
+            return;
+
+        isAttached = true;
+
+        // Р Р°Р·РІРѕСЂР°С‡РёРІР°РµРј СЂСѓС‡РєСѓ С‚Р°Рє, С‡С‚РѕР±С‹ СЂРѕР»РёРєРё В«СЃРјРѕС‚СЂРµР»РёВ» РІРґРѕР»СЊ С‚СЂРѕСЃР°.
+        Vector3 direction = cableRoute.TravelDirection;
+        if (direction.sqrMagnitude > 0.0001f)
+            transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+
+        // Р”РІРёРіР°РµРј СЂСѓС‡РєСѓ С‚Р°Рє, С‡С‚РѕР±С‹ CableAnchor РѕРєР°Р·Р°Р»СЃСЏ СЂРѕРІРЅРѕ РЅР° С‚СЂРѕСЃРµ.
+        Vector3 anchorOffset = cableAnchor.position - transform.position;
+        transform.position = cablePoint - anchorOffset;
+
+        ReleaseFromHands();
+        FreezePhysics();
+        DisablePickupInteraction();
+
+        CableZiplineRide ride = GetComponent<CableZiplineRide>();
+        if (ride == null)
+            ride = gameObject.AddComponent<CableZiplineRide>();
+
+        ride.enabled = true;
+        ride.ConfigureRoute(cableRoute, routeProgress);
+        ride.MarkAsInstalled();
+        ride.ActivateOnCable();
+
+        RemoveOtherInstalledRides(ride);
+        PlaySoundAt(cablePoint, attachClips, attachVolume, attachPitchRange);
+
+        Debug.Log($"[AssembledZipline] Р СѓС‡РєР° СѓСЃС‚Р°РЅРѕРІР»РµРЅР° РЅР° С‚СЂРѕСЃ РІ С‚РѕС‡РєРµ {cablePoint} (t={routeProgress:0.00}).", this);
+    }
+
+    /// <summary>
+    /// РќР° РѕРґРёРЅ С‚СЂРѕСЃ вЂ” РѕРґРЅР° СѓСЃС‚Р°РЅРѕРІР»РµРЅРЅР°СЏ СЂСѓС‡РєР°. Р•СЃР»Рё РёРіСЂРѕРє РїСЂРёРЅС‘СЃ Рё РїРѕСЃС‚Р°РІРёР»
+    /// РЅРѕРІСѓСЋ СЂСѓС‡РєСѓ, СЃС‚Р°СЂР°СЏ (РЅР°РїСЂРёРјРµСЂ, Р·Р°РіРѕС‚РѕРІР»РµРЅРЅР°СЏ РІ СЃС†РµРЅРµ) СѓР±РёСЂР°РµС‚СЃСЏ,
+    /// С‡С‚РѕР±С‹ РѕРЅРё РЅРµ РІРёСЃРµР»Рё РґСЂСѓРі РІ РґСЂСѓРіРµ.
+    /// </summary>
+    private void RemoveOtherInstalledRides(CableZiplineRide installedRide)
+    {
+        CableZiplineRide[] rides = FindObjectsByType<CableZiplineRide>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < rides.Length; i++)
         {
-            AttachToCable(targetRide);
+            CableZiplineRide other = rides[i];
+            if (other == null || other == installedRide || !other.IsInstalled)
+                continue;
+
+            if (other.CableRoute != cableRoute)
+                continue;
+
+            Destroy(other.gameObject);
         }
     }
 
-    private void OnCollisionEnter(Collision collision)
+    private void ReleaseFromHands()
     {
-        TryAttachFromCollider(collision != null ? collision.collider : null);
+        PhysicsHoldController holdController = FindFirstObjectByType<PhysicsHoldController>();
+        if (holdController != null && holdController.IsHolding && ReferenceEquals(holdController.Held, pickupObject))
+            holdController.Release(false);
+
+        if (pickupObject != null && pickupObject.IsHeld)
+            pickupObject.EndHold();
     }
 
-    private void OnCollisionStay(Collision collision)
+    private void FreezePhysics()
     {
-        TryAttachFromCollider(collision != null ? collision.collider : null);
+        if (rb == null)
+            return;
+
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.useGravity = false;
+        rb.isKinematic = true;
+        rb.interpolation = RigidbodyInterpolation.None;
+    }
+
+    private void DisablePickupInteraction()
+    {
+        if (pickupObject != null)
+            pickupObject.enabled = false;
+
+        Outline outline = GetComponent<Outline>();
+        if (outline != null)
+            outline.enabled = false;
+    }
+
+    // ---------------------------------------------------------------------
+    // РЎС‚Р°СЂР°СЏ СЃС…РµРјР°: СЂСѓС‡РєР° Р°РєС‚РёРІРёСЂСѓРµС‚ РѕС‚РґРµР»СЊРЅС‹Р№ CableZiplineRide (ZiplineRig).
+    // РћСЃС‚Р°РІР»РµРЅРѕ РґР»СЏ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё СЃРѕ СЃС†РµРЅР°РјРё, РіРґРµ С‚Р°РєРѕР№ РѕР±СЉРµРєС‚ СѓР¶Рµ СЂР°Р·РјРµС‰С‘РЅ.
+    // ---------------------------------------------------------------------
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        TryAttachToLegacyRide(collision != null ? collision.collider : null);
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        TryAttachFromCollider(other);
+        TryAttachToLegacyRide(other);
     }
 
-    private void OnTriggerStay(Collider other)
+    private void TryAttachToLegacyRide(Collider otherCollider)
     {
-        TryAttachFromCollider(other);
+        if (isAttached || otherCollider == null || cableRoute != null)
+            return;
+
+        CableZiplineRide targetRide = FindLegacyRide();
+        if (targetRide == null || targetRide == GetComponent<CableZiplineRide>())
+            return;
+
+        if (otherCollider.GetComponentInParent<CableZiplineRide>() != targetRide)
+            return;
+
+        isAttached = true;
+        ReleaseFromHands();
+        PlaySoundAt(targetRide.MountWorldPosition, attachClips, attachVolume, attachPitchRange);
+
+        targetRide.MarkAsInstalled();
+        targetRide.gameObject.SetActive(true);
+        targetRide.ActivateOnCable();
+
+        Destroy(gameObject);
     }
 
-    private void TryAttachFromCollider(Collider otherCollider)
-    {
-        if (isAttached || otherCollider == null)
-            return;
-
-        CableZiplineRide targetRide = FindTargetRide();
-        if (targetRide == null)
-            return;
-
-        if (mountTargetCollider != null &&
-            (otherCollider == mountTargetCollider || otherCollider.transform.IsChildOf(mountTargetCollider.transform)))
-        {
-            AttachToCable(targetRide);
-            return;
-        }
-
-        if (otherCollider.GetComponentInParent<CableZiplineRide>() == targetRide)
-        {
-            AttachToCable(targetRide);
-        }
-    }
-
-    private CableZiplineRide FindTargetRide()
+    private CableZiplineRide FindLegacyRide()
     {
         CableZiplineRide[] rides = FindObjectsByType<CableZiplineRide>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         if (rides == null || rides.Length == 0)
@@ -103,118 +251,10 @@ public class AssembledZipline : MonoBehaviour
             }
         }
 
-        if (rides.Length == 1)
+        if (rides.Length == 1 && rides[0] != GetComponent<CableZiplineRide>())
             return rides[0];
 
-        CableZiplineRide nearest = null;
-        float bestDistSqr = float.MaxValue;
-
-        for (int i = 0; i < rides.Length; i++)
-        {
-            CableZiplineRide ride = rides[i];
-            if (ride == null) continue;
-
-            float dSqr = (ride.MountWorldPosition - transform.position).sqrMagnitude;
-            if (dSqr < bestDistSqr)
-            {
-                bestDistSqr = dSqr;
-                nearest = ride;
-            }
-        }
-
-        return nearest;
-    }
-
-    private Vector3 GetClosestSelfPoint(Vector3 referencePoint)
-    {
-        Vector3 best = transform.position;
-        float bestSqr = (best - referencePoint).sqrMagnitude;
-
-        if (ownColliders != null && ownColliders.Length > 0)
-        {
-            for (int i = 0; i < ownColliders.Length; i++)
-            {
-                Collider col = ownColliders[i];
-                if (col == null || !col.enabled || !col.gameObject.activeInHierarchy) continue;
-
-                if (col is MeshCollider mc && !mc.convex)
-                    continue;
-
-                Vector3 closest = col.ClosestPoint(referencePoint);
-                float sqr = (closest - referencePoint).sqrMagnitude;
-                if (sqr < bestSqr)
-                {
-                    bestSqr = sqr;
-                    best = closest;
-                }
-            }
-        }
-
-        return best;
-    }
-
-    private bool IsNearMountTarget(CableZiplineRide targetRide)
-    {
-        float radiusSqr = attachRadius * attachRadius;
-
-        if (mountTargetCollider != null && mountTargetCollider.enabled && mountTargetCollider.gameObject.activeInHierarchy)
-        {
-            Vector3 selfPt = GetClosestSelfPoint(mountTargetCollider.bounds.center);
-            Vector3 targetPt = mountTargetCollider.ClosestPoint(selfPt);
-            if ((targetPt - selfPt).sqrMagnitude <= radiusSqr)
-                return true;
-        }
-
-        Vector3 mountPos = targetRide.MountWorldPosition;
-        Vector3 fromSelf = GetClosestSelfPoint(mountPos);
-        if ((mountPos - fromSelf).sqrMagnitude <= radiusSqr)
-            return true;
-
-        // Проверка по горизонтали (X, Z) к тросу/столбу на любой высоте Y троса.
-        Vector3 ridePos = targetRide.transform.position;
-        float clampedY = Mathf.Clamp(transform.position.y, targetRide.MinY, targetRide.MaxY);
-        Vector3 closestOnLine = new Vector3(ridePos.x, clampedY, ridePos.z);
-        Vector3 fromLineSelf = GetClosestSelfPoint(closestOnLine);
-        if ((closestOnLine - fromLineSelf).sqrMagnitude <= radiusSqr)
-            return true;
-
-        // Запасная проверка по горизонтальной дистанции XZ до оси троса, если игрок тянется снизу.
-        Vector2 selfXZ = new Vector2(fromLineSelf.x, fromLineSelf.z);
-        Vector2 poleXZ = new Vector2(ridePos.x, ridePos.z);
-        return (selfXZ - poleXZ).sqrMagnitude <= (attachRadius * 0.65f) * (attachRadius * 0.65f);
-    }
-
-    private void AttachToCable(CableZiplineRide targetRide)
-    {
-        if (isAttached || targetRide == null)
-            return;
-
-        isAttached = true;
-
-        ReleaseFromHands();
-        PlaySoundAt(targetRide.MountWorldPosition, attachClips, attachVolume, attachPitchRange);
-
-        targetRide.MarkAsInstalled();
-        targetRide.gameObject.SetActive(true);
-        targetRide.ActivateOnCable();
-
-        Debug.Log($"[AssembledZipline] Установлен на '{targetRide.gameObject.name}' в позиции {targetRide.transform.position}", targetRide);
-
-        Destroy(gameObject);
-    }
-
-    private void ReleaseFromHands()
-    {
-        PhysicsHoldController holdController = FindFirstObjectByType<PhysicsHoldController>();
-        if (holdController != null && holdController.IsHolding && ReferenceEquals(holdController.Held, pickupObject))
-        {
-            holdController.Release(false);
-        }
-
-        if (pickupObject != null && pickupObject.IsHeld)
-        {
-            pickupObject.EndHold();
-        }
+        return null;
     }
 
     private static void PlaySoundAt(Vector3 position, AudioClip[] clips, float volume, Vector2 pitchRange)
@@ -226,10 +266,10 @@ public class AssembledZipline : MonoBehaviour
         if (clip == null)
             return;
 
-        GameObject audioObj = new GameObject("ZiplineAttachSound");
-        audioObj.transform.position = position;
+        GameObject audioObject = new GameObject("ZiplineAttachSound");
+        audioObject.transform.position = position;
 
-        AudioSource source = audioObj.AddComponent<AudioSource>();
+        AudioSource source = audioObject.AddComponent<AudioSource>();
         source.clip = clip;
         source.volume = volume;
         source.pitch = Random.Range(pitchRange.x, pitchRange.y);
@@ -240,6 +280,16 @@ public class AssembledZipline : MonoBehaviour
         source.loop = false;
         source.Play();
 
-        Destroy(audioObj, clip.length / Mathf.Max(0.01f, Mathf.Abs(source.pitch)) + 0.25f);
+        Destroy(audioObject, clip.length / Mathf.Max(0.01f, Mathf.Abs(source.pitch)) + 0.25f);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (cableAnchor == null)
+            return;
+
+        Gizmos.color = new Color(0.2f, 1f, 0.3f, 0.5f);
+        Gizmos.DrawWireSphere(cableAnchor.position, attachRadius);
     }
 }
+

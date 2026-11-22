@@ -60,6 +60,10 @@ public class FuelCanister : MonoBehaviour
         rb = GetComponent<Rigidbody>();
         pickupObject = GetComponent<PickupObject>();
         currentFuel = Mathf.Clamp(initialFuel, 0f, fuelCapacity);
+#if UNITY_EDITOR
+        if (currentFuel <= 0f && !UnityEditor.EditorApplication.isPlaying && UnityEditor.PrefabUtility.IsPartOfPrefabAsset(gameObject))
+            currentFuel = fuelCapacity;
+#endif
 
         SetupAudio();
         SetStreamActive(false);
@@ -152,7 +156,12 @@ public class FuelCanister : MonoBehaviour
         // Страховка от порядка инициализации: Awake мог ещё не отработать
         // (например, объект активирован позже), иначе здесь NRE на rb.
         if (rb == null) rb = GetComponent<Rigidbody>();
-        if (rb == null) return false;
+        if (rb == null)
+        {
+            activeGenerator = null;
+            pourTarget = null;
+            return false;
+        }
 
         ReleaseFromPlayerHold();
 

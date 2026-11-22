@@ -38,6 +38,10 @@ public class GeneratorController : MonoBehaviour, IInteractable
     [Tooltip("Минимальная пауза между заправками, чтобы одно нажатие не срабатывало несколько раз.")]
     [SerializeField, Min(0f)] private float refuelCooldown = 0.2f;
 
+    [Header("Интеграция с системой Александра")]
+    [Tooltip("FuelGenerator из системы Александра. Если назначен, топливо и состояние двигателя берутся из него.")]
+    [SerializeField] private FuelGenerator linkedGenerator;
+
     [Header("Обратная связь")]
     [Tooltip("Лампа/подсветка, которая горит только при работающем генераторе.")]
     [SerializeField] private Light powerLight;
@@ -62,15 +66,21 @@ public class GeneratorController : MonoBehaviour, IInteractable
     // Публичное состояние (только чтение). Поля сериализованы и видны в инспекторе.
     // ---------------------------------------------------------------------
 
-    public float MaxFuel => maxFuel;
-    public float CurrentFuel => currentFuel;
-    public bool IsPowered => isPowered;
+    public float MaxFuel => linkedGenerator != null ? linkedGenerator.FuelCapacity : maxFuel;
+    public float CurrentFuel => linkedGenerator != null ? linkedGenerator.CurrentFuel : currentFuel;
+    public bool IsPowered => linkedGenerator != null ? linkedGenerator.IsRunning : isPowered;
     public float FuelConsumptionRate => fuelConsumptionRate;
 
-    /// <summary>Топливо в диапазоне 0..1 — удобно для UI/индикаторов.</summary>
-    public float FuelNormalized => maxFuel > 0.0001f ? Mathf.Clamp01(currentFuel / maxFuel) : 0f;
+    /// <summary>Двигатель работает И кабель питания подключён (провод включён).</summary>
+    public bool HasPower => linkedGenerator != null ? linkedGenerator.HasPower : isPowered;
 
-    public bool IsFuelFull => currentFuel >= maxFuel - 0.001f;
+    /// <summary>FuelGenerator Александра, если он используется как источник состояния.</summary>
+    public FuelGenerator LinkedGenerator => linkedGenerator;
+
+    /// <summary>Топливо в диапазоне 0..1 — удобно для UI/индикаторов.</summary>
+    public float FuelNormalized => MaxFuel > 0.0001f ? Mathf.Clamp01(CurrentFuel / MaxFuel) : 0f;
+
+    public bool IsFuelFull => CurrentFuel >= MaxFuel - 0.001f;
 
     /// <summary>Событие при включении/выключении. Аргумент — новое значение isPowered.</summary>
     public event Action<bool> PoweredChanged;
@@ -85,6 +95,9 @@ public class GeneratorController : MonoBehaviour, IInteractable
         fuelConsumptionRate = Mathf.Max(0f, fuelConsumptionRate);
         currentFuel = Mathf.Clamp(currentFuel, 0f, maxFuel);
 
+        // Если на объекте есть FuelGenerator Александра — работаем через него.
+        if (linkedGenerator == null) linkedGenerator = GetComponent<FuelGenerator>();
+
         // Если в инспекторе случайно оставили isPowered при пустом баке — не даём
         // «вечному двигателю»: работать без топлива нельзя.
         if (isPowered && currentFuel <= 0f) isPowered = false;
@@ -94,7 +107,22 @@ public class GeneratorController : MonoBehaviour, IInteractable
 
     private void Update()
     {
-        if (!isPowered) return;
+        if (!IsPowered) return;
+
+        // Если подключён FuelGenerator Александра — расходуем его топливо,
+        // чтобы все его потребители (кабель, зиплайн) видели одно состояние.
+        if (linkedGenerator != null)
+        {
+            linkedGenerator.ConsumeFuel(fuelConsumptionRate * Time.deltaTime);
+
+            if (!linkedGenerator.IsRunning)
+            {
+                SetPowered(false);
+                Debug.Log("[GeneratorController] Топливо закончилось — генератор выключился.", this);
+            }
+
+            return;
+        }
 
         // Работающий генератор постепенно расходует топливо.
         currentFuel -= fuelConsumptionRate * Time.deltaTime;
@@ -135,8 +163,21 @@ public class GeneratorController : MonoBehaviour, IInteractable
         float add = amount > 0f ? amount : canisterFuelAmount;
         if (add <= 0f) return false;
 
-        currentFuel = Mathf.Clamp(currentFuel + add, 0f, maxFuel);
         nextRefuelTime = Time.time + refuelCooldown;
+
+        // Если на объекте есть FuelGenerator Александра — льём топливо в него.
+        // Это автоматически запускает его двигатель (AddFuel -> StartEngine).
+        if (linkedGenerator != null)
+        {
+            linkedGenerator.AddFuel(add);
+            SetPowered(true);
+            UpdateFeedback();
+
+            Debug.Log($"[GeneratorController] Заправка FuelGenerator: +{add:0.#} → {linkedGenerator.CurrentFuel:0.#}/{linkedGenerator.FuelCapacity:0.#}, running={linkedGenerator.IsRunning}", this);
+            return true;
+        }
+
+        currentFuel = Mathf.Clamp(currentFuel + add, 0f, maxFuel);
 
         // По условию задачи: если после заправки топливо > 0 — генератор включается.
         if (currentFuel > 0f) SetPowered(true);
@@ -149,6 +190,27 @@ public class GeneratorController : MonoBehaviour, IInteractable
     /// <summary>Включить/выключить генератор. Без топлива включиться нельзя.</summary>
     public void SetPowered(bool powered)
     {
+        if (linkedGenerator != null)
+        {
+            bool wasRunning = linkedGenerator.IsRunning;
+
+            if (powered)
+            {
+                if (linkedGenerator.CurrentFuel > 0f) linkedGenerator.StartEngine();
+            }
+            else
+            {
+                linkedGenerator.StopEngine();
+            }
+
+            isPowered = linkedGenerator.IsRunning;
+            if (wasRunning != isPowered) PoweredChanged?.Invoke(isPowered);
+
+            Debug.Log($"[GeneratorController] linked FuelGenerator running={isPowered}", this);
+            UpdateFeedback();
+            return;
+        }
+
         bool next = powered && currentFuel > 0f;
         if (isPowered != next)
         {
@@ -160,6 +222,15 @@ public class GeneratorController : MonoBehaviour, IInteractable
         UpdateFeedback();
     }
 
+    /// <summary>
+    /// Подключение "кабеля питания". WireConnector вызывает это при появлении/исчезновении
+    /// провода; для FuelGenerator Александра это переключает HasPower.
+    /// </summary>
+    public void SetCableConnected(bool connected)
+    {
+        if (linkedGenerator != null) linkedGenerator.SetCableConnected(connected);
+    }
+
     // ---------------------------------------------------------------------
     // IInteractable — интеграция с существующей системой взаимодействия
     // ---------------------------------------------------------------------
@@ -167,11 +238,44 @@ public class GeneratorController : MonoBehaviour, IInteractable
     public string InteractionPrompt =>
         IsFuelFull
             ? fullPrompt
-            : $"{refuelPrompt} ({Mathf.CeilToInt(currentFuel)}/{Mathf.CeilToInt(maxFuel)})";
+            : $"{refuelPrompt} ({Mathf.CeilToInt(CurrentFuel)}/{Mathf.CeilToInt(MaxFuel)})";
 
-    public bool CanInteract(PlayerInteractor interactor) => isActiveAndEnabled;
+    /// <summary>Генератор доступен для E только когда игрок держит канистру с бензином.</summary>
+    public bool CanInteract(PlayerInteractor interactor)
+        => isActiveAndEnabled
+           && linkedGenerator != null
+           && !linkedGenerator.IsFueled
+           && FindHeldCanister(interactor) != null;
 
-    public void Interact(PlayerInteractor interactor) => TryRefuel();
+    public void Interact(PlayerInteractor interactor) => TryRefuelFromCanister(interactor);
+
+    /// <summary>E: поставить канистру из рук на горловину и начать заливку.</summary>
+    private bool TryRefuelFromCanister(PlayerInteractor interactor)
+    {
+        if (linkedGenerator == null) return TryRefuel();
+
+        FuelCanister canister = FindHeldCanister(interactor);
+        if (canister == null)
+        {
+            Debug.Log("[GeneratorController] Нужна канистра с бензином в руках.", this);
+            return false;
+        }
+
+        bool started = linkedGenerator.BeginPouringHeldCanister(canister);
+        if (started)
+            Debug.Log("[GeneratorController] Канистра встала на горловину, идёт заливка.", this);
+
+        return started;
+    }
+
+    private FuelCanister FindHeldCanister(PlayerInteractor interactor)
+    {
+        if (interactor == null || interactor.PhysicsHold == null || !interactor.PhysicsHold.IsHolding)
+            return null;
+
+        MonoBehaviour held = interactor.PhysicsHold.Held as MonoBehaviour;
+        return held != null ? held.GetComponentInParent<FuelCanister>() : null;
+    }
 
     /// <summary>
     /// Подсветка при наведении не требуется: у корпуса есть собственная лампа состояния,
@@ -185,19 +289,21 @@ public class GeneratorController : MonoBehaviour, IInteractable
 
     private void UpdateFeedback()
     {
-        if (powerLight != null) powerLight.enabled = isPowered;
+        bool powered = IsPowered;
+
+        if (powerLight != null) powerLight.enabled = powered;
 
         if (humSource != null)
         {
-            if (isPowered && !humSource.isPlaying) humSource.Play();
-            else if (!isPowered && humSource.isPlaying) humSource.Stop();
+            if (powered && !humSource.isPlaying) humSource.Play();
+            else if (!powered && humSource.isPlaying) humSource.Stop();
         }
 
         if (statusLightRenderer == null) return;
 
         if (propertyBlock == null) propertyBlock = new MaterialPropertyBlock();
 
-        Color c = isPowered ? poweredColor : unpoweredColor;
+        Color c = powered ? poweredColor : unpoweredColor;
         statusLightRenderer.GetPropertyBlock(propertyBlock);
         propertyBlock.SetColor("_BaseColor", c);
         propertyBlock.SetColor("_Color", c);

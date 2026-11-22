@@ -68,6 +68,11 @@ public class WireConnector : MonoBehaviour
 
         // Ключевое требование: провод активен только при включённом генераторе.
         line.enabled = powered;
+
+        // Провод — это ещё и "кабель питания" в системе Александра:
+        // пока он виден, FuelGenerator считает кабель подключённым (HasPower).
+        if (generator != null) generator.SetCableConnected(powered);
+
         if (!powered) return;
 
         line.useWorldSpace = true;
