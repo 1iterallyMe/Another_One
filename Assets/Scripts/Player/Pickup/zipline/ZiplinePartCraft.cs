@@ -7,9 +7,9 @@ public enum ZiplinePartRole
 }
 
 /// <summary>
-/// Соединяет две детали зиплайна при столкновении коллайдеров (в том числе если одна в руках).
-/// На месте двух деталей появляется собранный зиплайн, проигрывается звук,
-/// а при удержании детали новый зиплайн сразу оказывается в руках.
+/// Р§Р°СЃС‚СЊ Р±СѓРґСѓС‰РµР№ СЂСѓС‡РєРё Р·РёРїР»Р°Р№РЅР°. РљРѕРіРґР° РґРІРµ СЂР°Р·РЅС‹Рµ С‡Р°СЃС‚Рё СЃРѕРїСЂРёРєР°СЃР°СЋС‚СЃСЏ
+/// (РёР»Рё РїРѕРїР°РґР°СЋС‚ РІ С‚СЂРёРіРіРµСЂРЅС‹Рµ Р·РѕРЅС‹ РґСЂСѓРі РґСЂСѓРіР°), РѕРЅРё РёСЃС‡РµР·Р°СЋС‚ Рё РЅР° РёС… РјРµСЃС‚Рµ
+/// РїРѕСЏРІР»СЏРµС‚СЃСЏ СЃРѕР±СЂР°РЅРЅР°СЏ СЂСѓС‡РєР° <see cref="assembledZiplinePrefab"/>.
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody), typeof(PickupObject))]
@@ -17,33 +17,27 @@ public class ZiplinePartCraft : MonoBehaviour
 {
     [Header("Part Role")]
     [SerializeField] private ZiplinePartRole role = ZiplinePartRole.PartA;
-    [Tooltip("Если включено — может соединиться с любой другой деталью ZiplinePartCraft, не только с противоположной ролью.")]
+    [Tooltip("Р Р°Р·СЂРµС€РёС‚СЊ СЃРѕР±РёСЂР°С‚СЊ СЌС‚Сѓ С‡Р°СЃС‚СЊ СЃ Р»СЋР±РѕР№ РґСЂСѓРіРѕР№ С‡Р°СЃС‚СЊСЋ, Р° РЅРµ С‚РѕР»СЊРєРѕ СЃ РїСЂРѕС‚РёРІРѕРїРѕР»РѕР¶РЅРѕР№ СЂРѕР»СЊСЋ.")]
     [SerializeField] private bool allowAnyOtherPart = false;
 
     [Header("Assembled Result")]
-    [Tooltip("Префаб готового зиплайна (с Rigidbody, PickupObject и Outline).")]
+    [Tooltip("Р“РѕС‚РѕРІР°СЏ СЂСѓС‡РєР° Р·РёРїР»Р°Р№РЅР° (СЃ Rigidbody, PickupObject Рё AssembledZipline).")]
     [SerializeField] private GameObject assembledZiplinePrefab;
-    [Tooltip("Смещение точки появления собранного зиплайна относительно места столкновения (когда спавн не в руках).")]
+    [Tooltip("РЎРјРµС‰РµРЅРёРµ С‚РѕС‡РєРё РїРѕСЏРІР»РµРЅРёСЏ РіРѕС‚РѕРІРѕР№ СЂСѓС‡РєРё РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅРѕ РјРµСЃС‚Р° РєРѕРЅС‚Р°РєС‚Р°.")]
     [SerializeField] private Vector3 spawnOffset = Vector3.zero;
-    [Tooltip("Сразу брать готовый зиплайн в руки, если одна из деталей в момент соединения была в руках.")]
+    [Tooltip("Р•СЃР»Рё РѕРґРЅР° РёР· С‡Р°СЃС‚РµР№ Р±С‹Р»Р° РІ СЂСѓРєР°С… вЂ” СЃСЂР°Р·Сѓ РІР·СЏС‚СЊ РіРѕС‚РѕРІСѓСЋ СЂСѓС‡РєСѓ РІ СЂСѓРєРё.")]
     [SerializeField] private bool equipInHandsWhenHeld = true;
 
-    [Header("Safe Spawn (защита от застревания в стенах)")]
-    [Tooltip("Радиус проверки свободного места при появлении зиплайна в мире.")]
+    [Header("Safe Spawn")]
     [SerializeField, Min(0.05f)] private float safeCheckRadius = 0.35f;
-    [Tooltip("Слои стен/пола/препятствий, внутри которых не должен появляться зиплайн.")]
     [SerializeField] private LayerMask obstacleMask = ~0;
-    [Tooltip("Максимальное число попыток сдвинуть точку спавна в свободное место.")]
     [SerializeField, Min(1)] private int maxPushIterations = 8;
-    [Tooltip("Шаг сдвига от препятствия за одну итерацию (м).")]
     [SerializeField, Min(0.01f)] private float pushStep = 0.12f;
 
     [Header("Craft Sound & Effect")]
-    [Tooltip("Звуки соединения деталей. Выбирается случайный клип.")]
     [SerializeField] private AudioClip[] craftClips;
     [SerializeField, Range(0f, 1f)] private float craftVolume = 0.9f;
     [SerializeField] private Vector2 craftPitchRange = new Vector2(0.95f, 1.05f);
-    [Tooltip("Необязательный эффект (искры/вспышка) при сборке.")]
     [SerializeField] private GameObject craftEffectPrefab;
     [SerializeField] private float craftEffectLifetime = 2f;
 
@@ -60,32 +54,60 @@ public class ZiplinePartCraft : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        TryCraftWithCollision(collision);
+        if (collision == null || collision.collider == null)
+            return;
+
+        TryCraft(collision.collider, GetContactPoint(collision));
     }
 
     private void OnCollisionStay(Collision collision)
     {
-        TryCraftWithCollision(collision);
-    }
-
-    private void TryCraftWithCollision(Collision collision)
-    {
-        if (isConsumed || collision == null || collision.collider == null)
+        if (collision == null || collision.collider == null)
             return;
 
-        ZiplinePartCraft other = collision.collider.GetComponentInParent<ZiplinePartCraft>();
+        TryCraft(collision.collider, GetContactPoint(collision));
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other == null)
+            return;
+
+        TryCraft(other, other.ClosestPoint(transform.position));
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        if (other == null)
+            return;
+
+        TryCraft(other, other.ClosestPoint(transform.position));
+    }
+
+    private Vector3 GetContactPoint(Collision collision)
+    {
+        return collision.contactCount > 0
+            ? collision.GetContact(0).point
+            : (transform.position + collision.collider.bounds.center) * 0.5f;
+    }
+
+    private void TryCraft(Collider otherCollider, Vector3 contactPoint)
+    {
+        if (isConsumed || otherCollider == null)
+            return;
+
+        ZiplinePartCraft other = otherCollider.GetComponentInParent<ZiplinePartCraft>();
         if (other == null || other == this || other.isConsumed)
             return;
 
         if (!CanPairWith(other))
             return;
 
-        // Оба скрипта получают событие столкновения в один кадр:
-        // оставляем выполнение только за объектом с меньшим InstanceID, чтобы не создать два зиплайна.
+        // РР· РґРІСѓС… РѕРґРЅРѕРІСЂРµРјРµРЅРЅС‹С… СЃРѕР±С‹С‚РёР№ РєСЂР°С„С‚ Р·Р°РїСѓСЃРєР°РµС‚ С‚РѕР»СЊРєРѕ С‡Р°СЃС‚СЊ СЃ РјРµРЅСЊС€РёРј InstanceID.
         if (GetInstanceID() > other.GetInstanceID())
             return;
 
-        CompleteCraft(other, collision);
+        CompleteCraft(other, contactPoint);
     }
 
     private bool CanPairWith(ZiplinePartCraft other)
@@ -96,7 +118,7 @@ public class ZiplinePartCraft : MonoBehaviour
         return role != other.role;
     }
 
-    private void CompleteCraft(ZiplinePartCraft other, Collision collision)
+    private void CompleteCraft(ZiplinePartCraft other, Vector3 contactPoint)
     {
         isConsumed = true;
         other.isConsumed = true;
@@ -107,51 +129,47 @@ public class ZiplinePartCraft : MonoBehaviour
                                (other.pickupObject != null && other.pickupObject.IsHeld);
         bool shouldEquipInHands = equipInHandsWhenHeld && (wasHeldByController || wasHeldDirectly);
 
-        Vector3 contactPos = collision.contactCount > 0
-            ? collision.GetContact(0).point
-            : (transform.position + other.transform.position) * 0.5f;
-
-        Vector3 spawnPos;
-        Quaternion spawnRot;
+        Vector3 spawnPosition;
+        Quaternion spawnRotation;
 
         if (shouldEquipInHands && holdController != null)
         {
-            spawnPos = holdController.TargetPosition;
-            spawnRot = holdController.TargetRotation;
+            spawnPosition = holdController.TargetPosition;
+            spawnRotation = holdController.TargetRotation;
         }
         else
         {
-            spawnPos = FindSafeSpawnPosition(contactPos + spawnOffset, other);
-            spawnRot = transform.rotation;
+            spawnPosition = FindSafeSpawnPosition(contactPoint + spawnOffset, other);
+            spawnRotation = transform.rotation;
         }
 
         ReleasePart(this, other, holdController);
-        PlayCraftSound(spawnPos);
+        PlayCraftSound(spawnPosition);
 
         if (craftEffectPrefab != null)
         {
-            GameObject fx = Instantiate(craftEffectPrefab, spawnPos, spawnRot);
+            GameObject effect = Instantiate(craftEffectPrefab, spawnPosition, spawnRotation);
             if (craftEffectLifetime > 0f)
-                Destroy(fx, craftEffectLifetime);
+                Destroy(effect, craftEffectLifetime);
         }
 
         GameObject assembledInstance = null;
+
         if (assembledZiplinePrefab != null)
         {
-            assembledInstance = Instantiate(assembledZiplinePrefab, spawnPos, spawnRot);
+            assembledInstance = Instantiate(assembledZiplinePrefab, spawnPosition, spawnRotation);
+            assembledInstance.name = assembledZiplinePrefab.name;
         }
         else
         {
-            Debug.LogWarning($"[{nameof(ZiplinePartCraft)}] Не назначен Assembled Zipline Prefab на '{name}'.", this);
+            Debug.LogWarning($"[{nameof(ZiplinePartCraft)}] РќРµ РЅР°Р·РЅР°С‡РµРЅ Assembled Zipline Prefab Сѓ '{name}'.", this);
         }
 
         if (shouldEquipInHands && holdController != null && assembledInstance != null)
         {
             PickupObject assembledPickup = assembledInstance.GetComponent<PickupObject>();
             if (assembledPickup != null && !assembledPickup.IsHeavy)
-            {
                 holdController.BeginHold(assembledPickup);
-            }
         }
 
         Destroy(other.gameObject);
@@ -184,12 +202,13 @@ public class ZiplinePartCraft : MonoBehaviour
             second.pickupObject.EndHold();
     }
 
-    private Vector3 FindSafeSpawnPosition(Vector3 desiredPos, ZiplinePartCraft other)
+
+    private Vector3 FindSafeSpawnPosition(Vector3 desiredPosition, ZiplinePartCraft other)
     {
-        Vector3 candidate = desiredPos;
+        Vector3 candidate = desiredPosition;
         Collider[] overlaps = new Collider[16];
 
-        for (int iter = 0; iter < maxPushIterations; iter++)
+        for (int iteration = 0; iteration < maxPushIterations; iteration++)
         {
             int count = Physics.OverlapSphereNonAlloc(
                 candidate,
@@ -203,14 +222,14 @@ public class ZiplinePartCraft : MonoBehaviour
 
             for (int i = 0; i < count; i++)
             {
-                Collider col = overlaps[i];
-                if (col == null) continue;
-                if (col.transform.IsChildOf(transform)) continue;
-                if (other != null && col.transform.IsChildOf(other.transform)) continue;
-                if (col.GetComponentInParent<FPSController>() != null) continue;
+                Collider collider = overlaps[i];
+                if (collider == null) continue;
+                if (collider.transform.IsChildOf(transform)) continue;
+                if (other != null && collider.transform.IsChildOf(other.transform)) continue;
+                if (collider.GetComponentInParent<FPSController>() != null) continue;
 
                 foundObstacle = true;
-                Vector3 closestPoint = col.ClosestPoint(candidate);
+                Vector3 closestPoint = collider.ClosestPoint(candidate);
                 Vector3 away = candidate - closestPoint;
 
                 if (away.sqrMagnitude > 0.00001f)
@@ -219,7 +238,7 @@ public class ZiplinePartCraft : MonoBehaviour
                 }
                 else
                 {
-                    Vector3 centerAway = candidate - col.bounds.center;
+                    Vector3 centerAway = candidate - collider.bounds.center;
                     pushDirection += centerAway.sqrMagnitude > 0.00001f ? centerAway.normalized : Vector3.up;
                 }
             }
@@ -247,10 +266,10 @@ public class ZiplinePartCraft : MonoBehaviour
         if (clip == null)
             return;
 
-        GameObject tempAudioObj = new GameObject("ZiplineCraftSound");
-        tempAudioObj.transform.position = position;
+        GameObject tempAudioObject = new GameObject("ZiplineCraftSound");
+        tempAudioObject.transform.position = position;
 
-        AudioSource source = tempAudioObj.AddComponent<AudioSource>();
+        AudioSource source = tempAudioObject.AddComponent<AudioSource>();
         source.clip = clip;
         source.volume = craftVolume;
         source.pitch = Random.Range(craftPitchRange.x, craftPitchRange.y);
@@ -261,6 +280,7 @@ public class ZiplinePartCraft : MonoBehaviour
         source.loop = false;
         source.Play();
 
-        Destroy(tempAudioObj, clip.length / Mathf.Max(0.01f, Mathf.Abs(source.pitch)) + 0.2f);
+        Destroy(tempAudioObject, clip.length / Mathf.Max(0.01f, Mathf.Abs(source.pitch)) + 0.2f);
     }
 }
+

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -22,6 +23,7 @@ public class PlayerInteractor : MonoBehaviour
     public event System.Action<IInteractable> FocusChanged;
 
     private readonly RaycastHit[] hits = new RaycastHit[16];
+    private readonly List<IInteractable> interactableBuffer = new List<IInteractable>(8);
 
     void Awake()
     {
@@ -44,7 +46,7 @@ public class PlayerInteractor : MonoBehaviour
 
         // Пока игрок едет на зиплайне, обычное взаимодействие отключено:
         // иначе E может «зацепить» кнопку/предмет мимо цели.
-        if (ZiplineController.ActiveRide != null)
+        if (ZiplineController.ActiveRide != null || CableZiplineRide.ActiveMountedRide != null)
         {
             SetFocus(null);
             return;
@@ -108,15 +110,19 @@ public class PlayerInteractor : MonoBehaviour
     /// </summary>
     IInteractable ResolveInteractable(Collider col)
     {
-        IInteractable primary = col.GetComponentInParent<IInteractable>();
-        if (primary != null && primary.CanInteract(this))
-            return primary;
+        // На одном объекте может быть несколько реализаций IInteractable
+        // (PickupObject + CableZiplineRide у ручки зиплайна). Раньше брался
+        // только первый компонент, поэтому установленную ручку нельзя было
+        // «схватить» — PickupObject побеждал и пытался её поднять.
+        interactableBuffer.Clear();
+        col.GetComponentsInParent<IInteractable>(true, interactableBuffer);
 
-        // Запасной вариант: «поднимаемый» предмет на том же объекте имеет приоритет,
-        // если основной интерактор сейчас недоступен.
-        IPhysicsHoldable holdable = col.GetComponentInParent<IPhysicsHoldable>();
-        if (holdable != null && holdable.CanInteract(this))
-            return holdable;
+        for (int i = 0; i < interactableBuffer.Count; i++)
+        {
+            IInteractable candidate = interactableBuffer[i];
+            if (candidate != null && candidate.CanInteract(this))
+                return candidate;
+        }
 
         return null;
     }
