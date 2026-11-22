@@ -45,6 +45,9 @@ public class FuelCanister : MonoBehaviour
     private bool previousKinematic;
     private bool previousUseGravity;
 
+    // Буфер для проверки «куда безопасно вернуть канистру» (см. EndPouring).
+    private readonly Collider[] exitProbeBuffer = new Collider[8];
+
     public float CurrentFuel => currentFuel;
     public float FuelCapacity => fuelCapacity;
     public float FuelNormalized => fuelCapacity > 0f ? Mathf.Clamp01(currentFuel / fuelCapacity) : 0f;
@@ -146,10 +149,20 @@ public class FuelCanister : MonoBehaviour
         pourTarget = targetPoint != null ? targetPoint : generator.transform;
         pourElapsed = 0f;
 
+        // Страховка от порядка инициализации: Awake мог ещё не отработать
+        // (например, объект активирован позже), иначе здесь NRE на rb.
+        if (rb == null) rb = GetComponent<Rigidbody>();
+        if (rb == null) return false;
+
         ReleaseFromPlayerHold();
 
         previousKinematic = rb.isKinematic;
         previousUseGravity = rb.useGravity;
+
+        // Канистра встаёт вплотную к горловине, а горловина лежит ВНУТРИ коллайдера
+        // генератора. Без этого kinematic-канистра выталкивает генератор силой
+        // депенетрации — генератор проваливается сквозь пол, канистра падает следом.
+        SetPourCollisionsIgnored(generator, true);
 
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
@@ -176,6 +189,11 @@ public class FuelCanister : MonoBehaviour
         if (!IsPouring)
             return;
 
+        if (rb == null) rb = GetComponent<Rigidbody>();
+        if (rb == null) return;
+
+        Transform target = pourTarget;
+        FuelGenerator finishedGenerator = activeGenerator;
         activeGenerator = null;
         pourTarget = null;
         pourElapsed = 0f;
@@ -186,18 +204,100 @@ public class FuelCanister : MonoBehaviour
         rb.isKinematic = previousKinematic;
         if (!rb.isKinematic)
         {
-            // Поднимаем канистру над коллайдером генератора, иначе при
-            // включении физики депенетрация может отбросить её далеко.
-            rb.position = transform.position + Vector3.up * 0.35f;
-            rb.useGravity = previousUseGravity || true;
+            // Горловина генератора лежит ВНУТРИ его коллайдера, поэтому возвращать
+            // физику в исходной точке нельзя: депенетрация выбрасывает канистру,
+            // а Discrete-режим на тонком коллайдере прошивает пол.
+            // Ставим её в первую свободную точку над горловиной.
+            rb.position = FindFreeExitPosition(target);
+            rb.rotation = transform.rotation;
+            rb.useGravity = previousUseGravity;
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         }
+
+        // Возвращаем столкновения только после того, как канистра выведена из объёма.
+        SetPourCollisionsIgnored(finishedGenerator, false);
 
         if (completedFull && fuelFullClip != null && pourAudioSource != null)
         {
             pourAudioSource.pitch = 1f;
             pourAudioSource.PlayOneShot(fuelFullClip, fuelFullVolume);
+        }
+    }
+
+    /// <summary>Первая свободная точка над горловиной (или над текущей позицией).</summary>
+    private Vector3 FindFreeExitPosition(Transform target)
+    {
+        Vector3 basePosition = target != null ? target.position : transform.position;
+
+        for (float lift = 0.4f; lift <= 2.4f; lift += 0.2f)
+        {
+            Vector3 candidate = basePosition + Vector3.up * lift;
+            if (!OverlapsAnyCollider(candidate))
+                return candidate;
+        }
+
+        return transform.position + Vector3.up * 0.4f;
+    }
+
+    /// <summary>Пересекается ли канистра (её собственные коллайдеры) с чем-то ещё.</summary>
+    private bool OverlapsAnyCollider(Vector3 position)
+    {
+        Vector3 offset = position - transform.position;
+        Collider[] own = GetComponentsInChildren<Collider>(true);
+
+        for (int i = 0; i < own.Length; i++)
+        {
+            Collider col = own[i];
+            if (col == null || !col.enabled) continue;
+
+            Bounds bounds = col.bounds;
+            Vector3 center = bounds.center + offset;
+            int count = Physics.OverlapBoxNonAlloc(
+                center,
+                bounds.extents * 0.95f,
+                exitProbeBuffer,
+                col.transform.rotation,
+                ~0,
+                QueryTriggerInteraction.Ignore);
+
+            for (int k = 0; k < count; k++)
+            {
+                Collider other = exitProbeBuffer[k];
+                if (other == null) continue;
+                if (other.transform.IsChildOf(transform)) continue;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Включает/выключает столкновения канистры с генератором на время заливки.
+    /// Иначе kinematic-канистра, стоящая в объёме генератора, выталкивает его
+    /// силой депенетрации — генератор проваливается сквозь пол, канистра за ним.
+    /// </summary>
+    private void SetPourCollisionsIgnored(FuelGenerator generator, bool ignore)
+    {
+        if (generator == null)
+            return;
+
+        Collider[] mine = GetComponentsInChildren<Collider>(true);
+        Collider[] theirs = generator.GetComponentsInChildren<Collider>(true);
+
+        for (int i = 0; i < mine.Length; i++)
+        {
+            Collider a = mine[i];
+            if (a == null) continue;
+
+            for (int k = 0; k < theirs.Length; k++)
+            {
+                Collider b = theirs[k];
+                if (b == null) continue;
+                Physics.IgnoreCollision(a, b, ignore);
+            }
         }
     }
 
