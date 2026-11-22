@@ -13335,7 +13335,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b295b97466534e4c84a657fe1d303f26, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneTrigger
-  sceneName: "\u0421redits_Scene"
+  sceneName: "Credits_Scene"
   detectByPlayerComponent: 1
   playerTag: Player
   playerMask:
