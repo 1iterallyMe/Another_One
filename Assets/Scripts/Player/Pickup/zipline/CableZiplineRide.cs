@@ -14,13 +14,19 @@ public class CableZiplineRide : InteractableBase
     [Header("Interaction")]
     [Tooltip("Подсказка, которая показывается игроку при наведении на установленную ручку.")]
     [SerializeField] private string ridePrompt = "Схватиться за зиплайн";
+    [Tooltip("Подсказка, пока ручка без питания (генератор не заправлен или не подключён к зиплайну).")]
+    [SerializeField] private string unpoweredPrompt = "Схватиться за зиплайн (нет питания)";
 
     [Header("Activation & Power")]
     [Tooltip("Выключать объект в Awake, пока он не установлен. Для ручки-предмета должно быть false.")]
     [SerializeField] private bool autoDisableAtStart = false;
-    [Tooltip("Разрешить движение без генератора. Для тестового зиплайна включено.")]
-    [SerializeField] private bool powerWithoutGenerator = true;
     [SerializeField] private FuelGenerator generator;
+
+    [Header("Colliders When Installed")]
+    [Tooltip("Отключать физические коллайдеры ручки после установки на трос: игрок не упирается в неё и не толкает её.")]
+    [SerializeField] private bool disableCollidersWhenInstalled = true;
+    [Tooltip("Оставить один коллайдер-триггер, чтобы на ручку можно было навестись и нажать E.")]
+    [SerializeField] private bool keepInteractionTrigger = true;
 
     [Header("Mount & Hang Points")]
     [Tooltip("Точка на самом тросе (центр роликов ручки). Именно она держится на канате.")]
@@ -80,7 +86,43 @@ public class CableZiplineRide : InteractableBase
     public ZiplineCableRoute CableRoute => cableRoute;
     public int MoveDirectionY { get; private set; }
     public float RouteProgress => routeT;
-    public bool HasPower => powerWithoutGenerator || (generator != null && generator.HasPower);
+    /// <summary>
+    /// Питание есть только когда генератор подключён, заправлен и запущен.
+    /// Ссылка на генератор разрешается автоматически, если не назначена в инспекторе.
+    /// </summary>
+    public bool HasPower
+    {
+        get
+        {
+            FuelGenerator source = ResolveGenerator();
+            return source != null && source.HasPower;
+        }
+    }
+
+    /// <summary>
+    /// Причина блокировки движения (генератор не подключён / нет топлива).
+    /// Пустая строка — блокировки нет.
+    /// </summary>
+    public string PowerBlockReason
+    {
+        get
+        {
+            FuelGenerator source = ResolveGenerator();
+            if (source == null)
+                return "Канатная дорога не подключена к генератору";
+
+            if (source.CurrentFuel <= 0f)
+                return "Генератор пуст — залейте бензин";
+
+            if (!source.IsRunning)
+                return "Генератор не запущен";
+
+            if (!source.IsCableConnected)
+                return "Провод не подключён к канатной дороге — соедините розетку генератора и розетку зиплайна";
+
+            return string.Empty;
+        }
+    }
 
     public Vector3 MountWorldPosition
     {
@@ -92,7 +134,7 @@ public class CableZiplineRide : InteractableBase
         }
     }
 
-    public override string InteractionPrompt => ridePrompt;
+    public override string InteractionPrompt => HasPower ? ridePrompt : unpoweredPrompt;
 
     private Transform riderTransform;
     private Rigidbody riderRb;
@@ -107,12 +149,15 @@ public class CableZiplineRide : InteractableBase
     private float targetY;
     private float mountedAtTime;
     private float routeT;
+    private float nextGeneratorSearchTime;
+    private float nextBlockedMessageTime;
     private bool isInstalled;
     private bool routeInitialized;
 
     private void Awake()
     {
         ResolveAnchors();
+        ResolveGenerator(force: true);
         SetupAudio();
 
         if (minY > maxY)
@@ -124,6 +169,24 @@ public class CableZiplineRide : InteractableBase
 
         if (autoDisableAtStart && !isInstalled)
             gameObject.SetActive(false);
+    }
+
+    /// <summary>
+    /// Возвращает генератор, питающий канатную дорогу. Если ссылка не назначена
+    /// в инспекторе — ищет её в сцене (один раз в секунду, чтобы не сканировать
+    /// сцену каждый кадр, пока генератора нет).
+    /// </summary>
+    private FuelGenerator ResolveGenerator(bool force = false)
+    {
+        if (generator != null)
+            return generator;
+
+        if (!force && Time.unscaledTime < nextGeneratorSearchTime)
+            return null;
+
+        nextGeneratorSearchTime = Time.unscaledTime + 1f;
+        generator = FindFirstObjectByType<FuelGenerator>();
+        return generator;
     }
 
     private void ResolveAnchors()
@@ -250,6 +313,9 @@ public class CableZiplineRide : InteractableBase
         IsMoving = false;
         MoveDirectionY = 0;
 
+        // Ручка появляется в рантайме (крафт двух частей) — генератор ищем заново.
+        ResolveGenerator(force: true);
+
         if (!gameObject.activeSelf)
             gameObject.SetActive(true);
 
@@ -260,12 +326,7 @@ public class CableZiplineRide : InteractableBase
                 renderers[i].enabled = true;
         }
 
-        Collider[] colliders = GetComponentsInChildren<Collider>(true);
-        for (int i = 0; i < colliders.Length; i++)
-        {
-            if (colliders[i] != null)
-                colliders[i].enabled = true;
-        }
+        ApplyInstalledColliders();
 
         if (useCableRoute && HasRoute)
         {
@@ -280,11 +341,71 @@ public class CableZiplineRide : InteractableBase
         }
     }
 
+    /// <summary>
+    /// Ручка висит на тросе и двигается скриптом, поэтому её физические
+    /// коллайдеры только мешают: игрок упирается в них и толкает ручку.
+    /// Отключаем их и оставляем один триггер, по которому PlayerInteractor
+    /// находит ручку для E.
+    /// </summary>
+    private void ApplyInstalledColliders()
+    {
+        Collider[] colliders = GetComponentsInChildren<Collider>(true);
+        if (colliders == null || colliders.Length == 0)
+            return;
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] != null)
+                colliders[i].enabled = true;
+        }
+
+        if (!disableCollidersWhenInstalled)
+            return;
+
+        Collider trigger = keepInteractionTrigger ? FindLargestCollider(colliders) : null;
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider collider = colliders[i];
+            if (collider == null) continue;
+
+            bool keepAsTrigger = ReferenceEquals(collider, trigger);
+            collider.isTrigger = keepAsTrigger;
+            collider.enabled = keepAsTrigger;
+        }
+    }
+
+    /// <summary>Самый крупный коллайдер — удобная зона наведения на ручку.</summary>
+    private static Collider FindLargestCollider(Collider[] colliders)
+    {
+        Collider best = null;
+        float bestVolume = -1f;
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider collider = colliders[i];
+            if (collider == null) continue;
+
+            Vector3 size = collider.bounds.size;
+            float volume = size.x * size.y * size.z;
+
+            if (volume > bestVolume)
+            {
+                bestVolume = volume;
+                best = collider;
+            }
+        }
+
+        return best;
+    }
+
     public override bool CanInteract(PlayerInteractor interactor)
     {
         if (!base.CanInteract(interactor) || interactor == null)
             return false;
 
+        // Взяться за ручку можно всегда: без питания поездка просто не поедет
+        // (движение гейтится в UpdateRouteMovement/UpdateVerticalMovement).
         return isInstalled && !IsMounted;
     }
 
@@ -294,6 +415,9 @@ public class CableZiplineRide : InteractableBase
             return;
 
         MountPlayer(interactor);
+
+        if (!HasPower)
+            Debug.LogWarning($"[{nameof(CableZiplineRide)}] Ручка захвачена, но движение заблокировано: {PowerBlockReason}.", this);
     }
 
 
@@ -401,6 +525,14 @@ public class CableZiplineRide : InteractableBase
             else if (Input.GetKeyDown(backwardMinusYKey))
                 StartMoveAlongY(-1, minY);
         }
+        else if (!HasPower && (Input.GetKeyDown(forwardPlusYKey) || Input.GetKeyDown(backwardMinusYKey)))
+        {
+            ReportBlockedMovement();
+        }
+
+        // Топливо кончилось в поездке — глушим движение.
+        if (IsMoving && !HasPower)
+            StopMoving();
 
         if (IsMoving)
             UpdateMovementY();
@@ -409,10 +541,16 @@ public class CableZiplineRide : InteractableBase
     private void UpdateRouteMovement()
     {
         float input = 0f;
+        bool wantsMove = Input.GetKey(forwardPlusYKey) || Input.GetKey(backwardMinusYKey);
+
         if (HasPower)
         {
             if (Input.GetKey(forwardPlusYKey)) input += 1f;
             if (Input.GetKey(backwardMinusYKey)) input -= 1f;
+        }
+        else if (wantsMove)
+        {
+            ReportBlockedMovement();
         }
 
         if (Mathf.Abs(input) <= 0.01f)
@@ -452,6 +590,19 @@ public class CableZiplineRide : InteractableBase
         MoveDirectionY = 0;
         StopMoveLoopSound();
         PlayRandomClip(moveStopClips, moveStopVolume);
+    }
+
+    /// <summary>
+    /// Игрок жмёт W/S, но генератор не заправлен или не подключён к зиплайну.
+    /// Сообщение троттлится, чтобы не засорять консоль каждый кадр.
+    /// </summary>
+    private void ReportBlockedMovement()
+    {
+        if (Time.unscaledTime < nextBlockedMessageTime)
+            return;
+
+        nextBlockedMessageTime = Time.unscaledTime + 2f;
+        Debug.LogWarning($"[{nameof(CableZiplineRide)}] Движение заблокировано: {PowerBlockReason}.", this);
     }
 
     private void StartMoveAlongY(int direction, float destinationY)

@@ -28,8 +28,8 @@ public class GeneratorController : MonoBehaviour, IInteractable
     [Tooltip("Включён ли генератор. Управляется автоматически: включается при заправке и гаснет без топлива.")]
     [SerializeField] private bool isPowered = false;
 
-    [Tooltip("Расход топлива в секунду во время работы.")]
-    [SerializeField, Min(0f)] private float fuelConsumptionRate = 1.5f;
+    [Tooltip("Расход топлива в секунду во время работы. При баке 100 и 0.075 полного бака хватает примерно на 22 минуты (было 1.5 — ~67 секунд).")]
+    [SerializeField, Min(0f)] private float fuelConsumptionRate = 0.075f;
 
     [Header("Заправка из канистры")]
     [Tooltip("Сколько топлива добавляет одно нажатие E.")]
@@ -61,6 +61,12 @@ public class GeneratorController : MonoBehaviour, IInteractable
 
     private float nextRefuelTime;
     private MaterialPropertyBlock propertyBlock;
+
+    // Индикаторы обновляются при изменении состояния, а не только при вызове
+    // TryRefuel/SetPowered: двигатель может запуститься напрямую через FuelGenerator
+    // (заливка канистрой), и тогда GeneratorController об этом не узнаёт.
+    private bool lastPoweredState;
+    private bool feedbackInitialized;
 
     // ---------------------------------------------------------------------
     // Публичное состояние (только чтение). Поля сериализованы и видны в инспекторе.
@@ -107,7 +113,18 @@ public class GeneratorController : MonoBehaviour, IInteractable
 
     private void Update()
     {
-        if (!IsPowered) return;
+        // FuelGenerator сам запускает двигатель после заливки канистрой, поэтому
+        // состояние индикаторов (StatusLight + PowerLight) отслеживаем по факту
+        // изменения IsPowered, а не только через SetPowered/TryRefuel.
+        bool poweredNow = IsPowered;
+        if (!feedbackInitialized || poweredNow != lastPoweredState)
+        {
+            feedbackInitialized = true;
+            lastPoweredState = poweredNow;
+            UpdateFeedback();
+        }
+
+        if (!poweredNow) return;
 
         // Если подключён FuelGenerator Александра — расходуем его топливо,
         // чтобы все его потребители (кабель, зиплайн) видели одно состояние.
@@ -291,6 +308,11 @@ public class GeneratorController : MonoBehaviour, IInteractable
     {
         bool powered = IsPowered;
 
+        // Синхронизируем кэш, чтобы внешние вызовы (TryRefuel, SetPowered,
+        // RefreshFeedback) не приводили к повторному обновлению на следующем кадре.
+        lastPoweredState = powered;
+        feedbackInitialized = true;
+
         if (powerLight != null) powerLight.enabled = powered;
 
         if (humSource != null)
@@ -308,7 +330,9 @@ public class GeneratorController : MonoBehaviour, IInteractable
         propertyBlock.SetColor("_BaseColor", c);
         propertyBlock.SetColor("_Color", c);
         // В выключенном состоянии оставляем лёгкое свечение, чтобы индикатор читался в темноте.
-        propertyBlock.SetColor("_EmissionColor", c * (isPowered ? 3f : 0.35f));
+        // Множитель берём от вычисленного powered: поле isPowered не обновляется,
+        // когда двигатель запускается напрямую через FuelGenerator (заливка канистрой).
+        propertyBlock.SetColor("_EmissionColor", c * (powered ? 3f : 0.35f));
         statusLightRenderer.SetPropertyBlock(propertyBlock);
     }
 

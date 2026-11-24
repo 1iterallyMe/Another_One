@@ -33,6 +33,9 @@ public class PowerCableItem : MonoBehaviour
     private PowerCableSocket generatorSocket;
     private PowerCableSocket ziplineSocket;
 
+    private PowerCableSocket.PlugPose generatorPlugPose;
+    private PowerCableSocket.PlugPose ziplinePlugPose;
+
     private bool generatorEndAttached;
     private bool ziplineEndAttached;
 
@@ -82,11 +85,16 @@ public class PowerCableItem : MonoBehaviour
     {
         if (generatorEndAttached) return false;
 
+        Transform end = looseStartAnchor != null ? looseStartAnchor : transform;
+
         generatorSocket = socket;
         generatorEndAttached = true;
 
+        // Вставляем в розетку саму модель штекера (Plug_0) вместе с концом троса.
+        generatorPlugPose = socket.AttachPlug(end);
+
         if (physicalCable != null)
-            physicalCable.SetEndA(socket.SnapPoint);
+            physicalCable.SetEndA(end);
 
         RefreshPowerState();
         return true;
@@ -96,13 +104,19 @@ public class PowerCableItem : MonoBehaviour
     {
         if (ziplineEndAttached) return false;
 
+        Transform end = plugAnchor != null ? plugAnchor : transform;
+
         ziplineSocket = socket;
         ziplineEndAttached = true;
 
-        if (physicalCable != null)
-            physicalCable.SetEndB(socket.SnapPoint);
+        // Вставляем вилку (Plug_1) в розетку зиплайна.
+        ziplinePlugPose = socket.AttachPlug(end);
 
-        // Вставляем вилку в розетку и фиксируем провод.
+        if (physicalCable != null)
+            physicalCable.SetEndB(end);
+
+        // Провод зафиксирован. Корень провода — невидимый держатель троса,
+        // поэтому его НЕ телепортируем в SnapPoint: штекер уже стоит в розетке.
         ReleaseFromHands();
 
         if (rb != null)
@@ -111,8 +125,6 @@ public class PowerCableItem : MonoBehaviour
             rb.angularVelocity = Vector3.zero;
             rb.isKinematic = true;
             rb.useGravity = false;
-            rb.position = socket.SnapPoint.position;
-            rb.rotation = socket.SnapPoint.rotation;
         }
 
         if (pickup != null) pickup.enabled = false;
@@ -122,10 +134,63 @@ public class PowerCableItem : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Вынуть провод из обеих розеток и вернуть штекеры на место.
+    /// Сейчас не вызывается автоматически, но нужен для отключения/сброса.
+    /// </summary>
+    public void DetachAll()
+    {
+        if (generatorSocket != null && generatorPlugPose.isValid)
+            generatorSocket.DetachPlug(looseStartAnchor != null ? looseStartAnchor : transform, generatorPlugPose);
+
+        if (ziplineSocket != null && ziplinePlugPose.isValid)
+            ziplineSocket.DetachPlug(plugAnchor != null ? plugAnchor : transform, ziplinePlugPose);
+
+        generatorPlugPose = default(PowerCableSocket.PlugPose);
+        ziplinePlugPose = default(PowerCableSocket.PlugPose);
+        generatorSocket = null;
+        ziplineSocket = null;
+        generatorEndAttached = false;
+        ziplineEndAttached = false;
+
+        if (pickup != null) pickup.enabled = true;
+        if (itemCollider != null) itemCollider.enabled = true;
+
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+            rb.useGravity = true;
+        }
+
+        if (physicalCable != null)
+        {
+            physicalCable.SetEndpoints(
+                looseStartAnchor != null ? looseStartAnchor : transform,
+                plugAnchor != null ? plugAnchor : transform);
+            physicalCable.Rebuild();
+        }
+
+        RefreshPowerState();
+    }
+
     private void RefreshPowerState()
     {
         if (generator == null) return;
         generator.SetCableConnected(IsFullyConnected);
+    }
+
+    /// <summary>
+    /// Страховка от рассинхрона: флаг на генераторе мог быть сброшен другим
+    /// кодом/порядком инициализации, хотя провод физически подключён с двух
+    /// сторон. SetCableConnected сам выходит, если значение не изменилось,
+    /// поэтому вызов каждый кадр ничего не стоит.
+    /// </summary>
+    private void Update()
+    {
+        if (generator == null) return;
+
+        if (generator.IsCableConnected != IsFullyConnected)
+            generator.SetCableConnected(IsFullyConnected);
     }
 
     private void OnDestroy()
