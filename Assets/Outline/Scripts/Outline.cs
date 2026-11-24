@@ -182,39 +182,53 @@ public class Outline : MonoBehaviour {
     // Retrieve or generate smooth normals
     foreach (var meshFilter in GetComponentsInChildren<MeshFilter>()) {
 
+      var mesh = meshFilter.sharedMesh;
+
+      // Skip filters without a mesh (empty child MeshFilter in a prefab)
+      if (mesh == null) {
+        continue;
+      }
+
       // Skip if smooth normals have already been adopted
-      if (!registeredMeshes.Add(meshFilter.sharedMesh)) {
+      if (!registeredMeshes.Add(mesh)) {
         continue;
       }
 
       // Retrieve or generate smooth normals
-      var index = bakeKeys.IndexOf(meshFilter.sharedMesh);
-      var smoothNormals = (index >= 0) ? bakeValues[index].data : SmoothNormals(meshFilter.sharedMesh);
+      var index = bakeKeys.IndexOf(mesh);
+      var smoothNormals = (index >= 0) ? bakeValues[index].data : SmoothNormals(mesh);
 
       // Store smooth normals in UV3
-      meshFilter.sharedMesh.SetUVs(3, smoothNormals);
+      mesh.SetUVs(3, smoothNormals);
 
       // Combine submeshes
       var renderer = meshFilter.GetComponent<Renderer>();
 
       if (renderer != null) {
-        CombineSubmeshes(meshFilter.sharedMesh, renderer.sharedMaterials);
+        CombineSubmeshes(mesh, renderer.sharedMaterials);
       }
     }
 
     // Clear UV3 on skinned mesh renderers
     foreach (var skinnedMeshRenderer in GetComponentsInChildren<SkinnedMeshRenderer>()) {
 
+      var skinnedMesh = skinnedMeshRenderer.sharedMesh;
+
+      // Skip renderers without a mesh
+      if (skinnedMesh == null) {
+        continue;
+      }
+
       // Skip if UV3 has already been reset
-      if (!registeredMeshes.Add(skinnedMeshRenderer.sharedMesh)) {
+      if (!registeredMeshes.Add(skinnedMesh)) {
         continue;
       }
 
       // Clear UV3
-      skinnedMeshRenderer.sharedMesh.uv4 = new Vector2[skinnedMeshRenderer.sharedMesh.vertexCount];
+      skinnedMesh.uv4 = new Vector2[skinnedMesh.vertexCount];
 
       // Combine submeshes
-      CombineSubmeshes(skinnedMeshRenderer.sharedMesh, skinnedMeshRenderer.sharedMaterials);
+      CombineSubmeshes(skinnedMesh, skinnedMeshRenderer.sharedMaterials);
     }
   }
 
