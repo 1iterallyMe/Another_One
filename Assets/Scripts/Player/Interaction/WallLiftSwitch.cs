@@ -394,6 +394,10 @@ public class WallLiftSwitch : InteractableBase
         if (buttonAnimator == null || buttonAnimator.runtimeAnimatorController == null)
             return;
 
+        // BUG-030: no state in controller - Play() would only spam the console.
+        if (!buttonAnimator.HasState(0, PressStateHash))
+            return;
+
         if (buttonRoutine != null)
             StopCoroutine(buttonRoutine);
 
@@ -438,6 +442,10 @@ public class WallLiftSwitch : InteractableBase
         // При выключении объекта Animator (он может быть на дочернем объекте) уже неактивен —
         // Play() выдал бы предупреждение «Game object with animator is inactive».
         if (!buttonAnimator.isActiveAndEnabled || !buttonAnimator.gameObject.activeInHierarchy)
+            return;
+
+        // BUG-030: guard Play() with HasState.
+        if (!buttonAnimator.HasState(0, PressStateHash))
             return;
 
         buttonAnimator.speed = 0f;

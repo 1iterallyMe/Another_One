@@ -135,7 +135,8 @@ public class LampFlicker : MonoBehaviour
         for (int i = 0; i < flickerCount; i++)
         {
             // Переключаем состояние (если было вкл, станет выкл)
-            SetVisualState(!lampLight.enabled); 
+            if (lampLight != null)
+                SetVisualState(!lampLight.enabled); 
             yield return new WaitForSeconds(Random.Range(minFlickerDelay, maxFlickerDelay));
         }
 
