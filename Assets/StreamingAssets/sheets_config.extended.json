@@ -1,9 +1,0 @@
-{
-  "title": "ЛИСТКИ С ФРАГМЕНТАМИ КОДА — РАСШИРЕННЫЙ НАБОР",
-  "sheets": [
-    { "prefab": "Paper_With_Code_0", "x": -1.5, "y": 1.55, "z": 2.2, "rotX": 90, "rotY": 180, "rotZ": 0 },
-    { "prefab": "Paper_With_Code_1", "x": -0.5, "y": 1.55, "z": 2.2, "rotX": 90, "rotY": 180, "rotZ": 0 },
-    { "prefab": "Paper_With_Code_2", "x": 0.5, "y": 1.55, "z": 2.2, "rotX": 90, "rotY": 180, "rotZ": 0 },
-    { "prefab": "Paper_With_Code_3", "x": 1.5, "y": 1.55, "z": 2.2, "rotX": 90, "rotY": 180, "rotZ": 0 }
-  ]
-}
