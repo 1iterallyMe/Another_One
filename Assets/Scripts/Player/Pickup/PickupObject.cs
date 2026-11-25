@@ -194,7 +194,7 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
     {
         if (Time.time < nextImpactTime) return;
         if (impactSpeed < minImpactSpeed) return;
-        if (audioSource == null || impactClips == null || impactClips.Length == 0) return;
+        if (audioSource == null || !audioSource.isActiveAndEnabled || impactClips == null || impactClips.Length == 0) return;
 
         AudioClip clip = impactClips[Random.Range(0, impactClips.Length)];
         if (clip == null) return;
