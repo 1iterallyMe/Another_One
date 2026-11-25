@@ -120,7 +120,18 @@ namespace AnotherOne.Props
                 inst.name = prefab.name;
                 inst.transform.position = new Vector3(p.x, p.y, p.z);
                 inst.transform.rotation = Quaternion.Euler(p.rotX, p.rotY, p.rotZ);
-                if (logState) Debug.Log("[Props] " + prefab.name + " -> " + inst.transform.position.ToString("F2"));
+                Physics.SyncTransforms();
+
+                // Тело не должно «уезжать» от заданной точки: гасим скорости и усыпляем.
+                // Динамическим оно остаётся — при толчке/подборе снова проснётся.
+                foreach (var rb in inst.GetComponentsInChildren<Rigidbody>())
+                {
+                    rb.linearVelocity = Vector3.zero;
+                    rb.angularVelocity = Vector3.zero;
+                    rb.Sleep();
+                }
+
+                if (logState) Debug.Log("[Props] " + prefab.name + " -> " + inst.transform.position.ToString("F3"));
                 _spawned.Add(inst);
             }
 
