@@ -322,7 +322,7 @@ public class VacuumCablePlug : PickupObject
         if (plugRb != null)
         {
             plugRb.isKinematic = prevKinematic;
-            plugRb.useGravity = prevUseGravity || true;
+            plugRb.useGravity = prevUseGravity;
         }
     }
 
