@@ -395,7 +395,7 @@ public class WallLiftSwitch : InteractableBase
             return;
 
         // BUG-030: no state in controller - Play() would only spam the console.
-        if (!buttonAnimator.HasState(0, PressStateHash))
+        if (!buttonAnimator.isInitialized || !buttonAnimator.HasState(0, PressStateHash))
             return;
 
         if (buttonRoutine != null)
@@ -445,7 +445,7 @@ public class WallLiftSwitch : InteractableBase
             return;
 
         // BUG-030: guard Play() with HasState.
-        if (!buttonAnimator.HasState(0, PressStateHash))
+        if (!buttonAnimator.isInitialized || !buttonAnimator.HasState(0, PressStateHash))
             return;
 
         buttonAnimator.speed = 0f;
