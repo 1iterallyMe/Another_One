@@ -1,12 +1,59 @@
 {
   "title": "ПРЕДМЕТЫ КОМНАТЫ (позиции как в сцене)",
   "props": [
-    { "prefab": "Jerrycan",        "x": 1.94,  "y": 1.03,  "z": 11.98, "rotX": 0,   "rotY": 0,   "rotZ": 0 },
-    { "prefab": "Banana",          "x": 9.00,  "y": 0.13,  "z": 10.00, "rotX": 0,   "rotY": 246, "rotZ": 90 },
-    { "prefab": "Zipline_Part_1",  "x": -0.97, "y": 2.47,  "z": -1.03, "rotX": 0,   "rotY": 0,   "rotZ": 0 },
-    { "prefab": "Ball",            "x": -2.00, "y": 1.25,  "z": 6.00,  "rotX": 0,   "rotY": 0,   "rotZ": 0 },
-    { "prefab": "Zipline_Part_0",  "x": 13.11, "y": 4.00,  "z": 3.14,  "rotX": 270, "rotY": 0,   "rotZ": 0 },
-    { "prefab": "Trampoline",      "x": 7.50,  "y": 0.00,  "z": -1.50, "rotX": 0,   "rotY": 0,   "rotZ": 0 },
-    { "prefab": "Power_Cable",     "x": -2.03, "y": 12.03, "z": 2.98,  "rotX": 0,   "rotY": 0,   "rotZ": 0 }
+    {
+      "prefab": "Jerrycan",
+      "x": 1.94,
+      "y": 1.03,
+      "z": 11.98,
+      "rotX": 0,
+      "rotY": 0,
+      "rotZ": 0
+    },
+    {
+      "prefab": "Banana",
+      "x": 9.0,
+      "y": 0.13,
+      "z": 10.0,
+      "rotX": 0,
+      "rotY": 246,
+      "rotZ": 90
+    },
+    {
+      "prefab": "Zipline_Part_1",
+      "x": -0.97,
+      "y": 2.47,
+      "z": -1.03,
+      "rotX": 0,
+      "rotY": 0,
+      "rotZ": 0
+    },
+    {
+      "prefab": "Ball",
+      "x": -2.0,
+      "y": 1.25,
+      "z": 6.0,
+      "rotX": 0,
+      "rotY": 0,
+      "rotZ": 0
+    },
+    {
+      "prefab": "Zipline_Part_0",
+      "x": 13.11,
+      "y": 4.0,
+      "z": 3.14,
+      "rotX": 270,
+      "rotY": 0,
+      "rotZ": 0
+    },
+    {
+      "prefab": "Trampoline",
+      "x": 7.5,
+      "y": 0.0,
+      "z": -1.5,
+      "rotX": 0,
+      "rotY": 0,
+      "rotZ": 0
+    }
   ]
 }
