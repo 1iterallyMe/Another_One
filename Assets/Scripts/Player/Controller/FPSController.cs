@@ -149,7 +149,75 @@ public class FPSController : MonoBehaviour
     private Quaternion lastHeadOffset = Quaternion.identity;
     private bool hasLastHead;
 
-    void Awake()
+    // ================= ВНЕШНЕЕ (МЫШИНОЕ) УПРАВЛЕНИЕ =================
+    // Режим включается компонентом MouseGameplayController: курсор виден,
+    // обзор — протяжкой мыши, движение — к точке на полу.
+    // Клавиатура при этом продолжает работать как дополнительный способ.
+
+    /// <summary>Обзор ведётся внешним контроллером (мышь), а не legacy-Input.</summary>
+    public bool UseExternalLook { get; set; }
+
+    /// <summary>Игрок присел (внешнее переключение).</summary>
+    public bool ExternalCrouchEnabled { get; private set; }
+
+    /// <summary>Игрок бежит (внешнее переключение).</summary>
+    public bool ExternalSprintEnabled { get; private set; }
+
+    private Vector3 externalMoveDirection;
+    private bool hasExternalMovement;
+    private bool externalJumpRequested;
+
+    /// <summary>Задать направление движения из внешнего источника (мышь).</summary>
+    public void SetExternalMoveDirection(Vector3 worldDirection)
+    {
+        worldDirection.y = 0f;
+        if (worldDirection.sqrMagnitude < 0.0001f)
+        {
+            hasExternalMovement = false;
+            return;
+        }
+
+        externalMoveDirection = worldDirection.normalized;
+        hasExternalMovement = true;
+    }
+
+    /// <summary>Остановить внешнее движение.</summary>
+    public void StopExternalMovement()
+    {
+        hasExternalMovement = false;
+    }
+
+    /// <summary>Довернуть обзор на указанное количество градусов (мышь).</summary>
+    public void ApplyLookDegrees(float yawDegrees, float pitchDegrees)
+    {
+        yaw += yawDegrees;
+        transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+
+        pitch += invertY ? pitchDegrees : -pitchDegrees;
+        pitch = Mathf.Clamp(pitch, -maxLookAngle, maxLookAngle);
+
+        if (cameraJoint != null) cameraJoint.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+    }
+
+    /// <summary>Запросить прыжок из внешнего источника (экранная кнопка).</summary>
+    public void RequestJump()
+    {
+        externalJumpRequested = true;
+    }
+
+    /// <summary>Включить/выключить приседание мышью (экранная кнопка).</summary>
+    public void SetExternalCrouch(bool value)
+    {
+        ExternalCrouchEnabled = value;
+        if (!value && isCrouched && CanStandUp()) isCrouched = false;
+    }
+
+    /// <summary>Включить/выключить бег мышью (экранная кнопка).</summary>
+    public void SetExternalSprint(bool value)
+    {
+        ExternalSprintEnabled = value;
+    }
+void Awake()
     {
         rb = GetComponent<Rigidbody>();
         col = GetComponent<CapsuleCollider>();
@@ -270,8 +338,12 @@ public class FPSController : MonoBehaviour
         transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
     }
 
-    void Look()
+void Look()
     {
+        // Когда обзор ведёт мышь (MouseGameplayController), legacy-Input не участвует:
+        // иначе камера дёргалась бы от случайных движений мыши без зажатой кнопки.
+        if (UseExternalLook) return;
+
         float mx = Input.GetAxis("Mouse X") * mouseSensitivity;
         float my = Input.GetAxis("Mouse Y") * mouseSensitivity;
 
@@ -339,20 +411,47 @@ public class FPSController : MonoBehaviour
         cameraJoint.localRotation = Quaternion.Euler(pitch, 0f, 0f);
     }
 
-    void GatherInput()
+void GatherInput()
     {
-        moveInput = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical")).normalized;
-        isSprinting = Input.GetKey(sprintKey) && !isCrouched && moveInput.z > 0.1f;
+        // --- Клавиатура (дополнительный способ управления) ---
+        Vector3 keyboardMove = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
+        bool keyboardActive = keyboardMove.sqrMagnitude > 0.01f;
+
+        // --- Мышь (основной способ управления) ---
+        // Движение по точке на полу перекрывает клавиатуру только когда она не нажата,
+        // иначе игрок может случайно «увести» цель клика.
+        if (hasExternalMovement && !keyboardActive)
+        {
+            // Направление задано в МИРОВЫХ координатах.
+            // Move() домножит его на Quaternion.Euler(0, yaw, 0) — это поворот
+            // на угол взгляда, который уже учтён в мировом векторе.
+            // Поэтому здесь вектор переводится в локальные оси ИГРОКА
+            // (transform.rotation), а не дополнительно поворачивается.
+            moveInput = transform.InverseTransformDirection(externalMoveDirection);
+            moveInput.y = 0f;
+            moveInput = moveInput.normalized;
+        }
+        else
+        {
+            moveInput = keyboardMove.normalized;
+        }
+
+        isSprinting = (Input.GetKey(sprintKey) || ExternalSprintEnabled) &&
+                      !isCrouched && moveInput.z > 0.1f;
 
         bool jumpInput = holdToJump ? Input.GetKey(jumpKey) : Input.GetKeyDown(jumpKey);
-        if (jumpInput) jumpBufferCounter = jumpBufferTime;
-        else jumpBufferCounter -= Time.deltaTime;
+        if (jumpInput || externalJumpRequested)
+            jumpBufferCounter = jumpBufferTime;
+        else
+            jumpBufferCounter -= Time.deltaTime;
+        externalJumpRequested = false;
+
+        bool wantCrouch = Input.GetKey(crouchKey) || ExternalCrouchEnabled;
 
         if (holdToCrouch)
         {
-            bool wantToCrouch = Input.GetKey(crouchKey);
-            if (!wantToCrouch && isCrouched && CanStandUp()) isCrouched = false;
-            else if (wantToCrouch) isCrouched = true;
+            if (!wantCrouch && isCrouched && CanStandUp()) isCrouched = false;
+            else if (wantCrouch) isCrouched = true;
         }
         else
         {
