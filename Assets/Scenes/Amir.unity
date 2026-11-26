@@ -43283,7 +43283,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8627931655968862761, guid: 12c1bb88553bb434592a70e3a04e538b, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8733010592643672991, guid: 12c1bb88553bb434592a70e3a04e538b, type: 3}
       propertyPath: m_Mesh
@@ -43291,7 +43291,7 @@ PrefabInstance:
       objectReference: {fileID: 1008588530}
     - target: {fileID: 8802640752683246063, guid: 12c1bb88553bb434592a70e3a04e538b, type: 3}
       propertyPath: m_IsActive
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8878137806528698418, guid: 12c1bb88553bb434592a70e3a04e538b, type: 3}
       propertyPath: m_Mesh
