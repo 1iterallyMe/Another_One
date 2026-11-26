@@ -29,8 +29,6 @@ Esc — освободить курсор.
 
 ## Документация
 
-- `Docs/AuditReport_2026-11-22.md` — технический аудит проекта (56 находок).
-- `Docs/Fixes_2026-11-22.md` — журнал исправлений по аудиту.
 - `~/Desktop/NTO_Project/docs/TechnicalSection.md` — техническая часть для ГДД.
 - `~/Desktop/NTO_Project/README.md` — инструкция к сдаваемому пакету.
 
