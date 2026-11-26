@@ -348,10 +348,10 @@ public class CreditsRoll : MonoBehaviour
 
     private string ResolveMenuScene()
     {
-        if (!string.IsNullOrWhiteSpace(menuSceneName) && Application.CanStreamedLevelBeLoaded(menuSceneName))
+        if (!string.IsNullOrWhiteSpace(menuSceneName) && SceneLoadUtility.Exists(menuSceneName))
             return menuSceneName;
 
-        if (!string.IsNullOrWhiteSpace(fallbackSceneName) && Application.CanStreamedLevelBeLoaded(fallbackSceneName))
+        if (!string.IsNullOrWhiteSpace(fallbackSceneName) && SceneLoadUtility.Exists(fallbackSceneName))
         {
             Debug.LogWarning($"[{nameof(CreditsRoll)}] Сцена меню «{menuSceneName}» не добавлена в Build Settings. Загружаю запасную «{fallbackSceneName}».", this);
             return fallbackSceneName;
@@ -425,11 +425,11 @@ public class CreditsRoll : MonoBehaviour
 
         if (!loadAsync)
         {
-            SceneManager.LoadScene(sceneName);
+            SceneLoadUtility.Load(sceneName);
             yield break;
         }
 
-        AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName);
+        AsyncOperation operation = SceneLoadUtility.LoadAsync(sceneName);
 
         if (operation == null)
         {

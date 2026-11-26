@@ -171,7 +171,7 @@ public class MainMenu : MonoBehaviour
         if (loading)
             return;
 
-        if (string.IsNullOrWhiteSpace(sceneName) || !Application.CanStreamedLevelBeLoaded(sceneName))
+        if (string.IsNullOrWhiteSpace(sceneName) || !SceneLoadUtility.Exists(sceneName))
         {
             Debug.LogError($"[{nameof(MainMenu)}] Сцена «{sceneName}» недоступна. Добавь её в Build Settings.", this);
             return;
@@ -201,7 +201,7 @@ public class MainMenu : MonoBehaviour
 
         Time.timeScale = 1f;
 
-        AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName);
+        AsyncOperation operation = SceneLoadUtility.LoadAsync(sceneName);
 
         if (operation == null)
         {
