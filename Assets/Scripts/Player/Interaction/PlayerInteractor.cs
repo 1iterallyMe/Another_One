@@ -9,9 +9,7 @@ public class PlayerInteractor : MonoBehaviour
     [SerializeField] private GrabManager inventory;
     [SerializeField] private PhysicsHoldController physicsHold;
 
-    /// <summary>Максимальная дистанция взаимодействия (доступна наружу для мышиного клика).</summary>
-    public float InteractDistance => interactDistance;
-[Header("Raycast")]
+    [Header("Raycast")]
     [SerializeField] private float interactDistance = 3f;
     [SerializeField] private float sphereRadius = 0.15f;
     [SerializeField] private LayerMask interactMask = 1 << 6;
@@ -34,12 +32,12 @@ public class PlayerInteractor : MonoBehaviour
         if (!physicsHold) physicsHold = GetComponent<PhysicsHoldController>();
     }
 
-void Update()
+    void Update()
     {
         // Ленивая страховка: если камера не назначена/потеряна — не роняем кадр.
         if (!playerCamera) playerCamera = GetComponentInChildren<Camera>();
 
-        if (playerCamera == null ||
+        if (playerCamera == null || Cursor.lockState != CursorLockMode.Locked ||
             (inventory != null && inventory.IsInventoryHidden))
         {
             SetFocus(null);
@@ -47,7 +45,7 @@ void Update()
         }
 
         // Пока игрок едет на зиплайне, обычное взаимодействие отключено:
-        // иначе действие может «зацепить» кнопку/предмет мимо цели.
+        // иначе E может «зацепить» кнопку/предмет мимо цели.
         if (ZiplineController.ActiveRide != null || CableZiplineRide.ActiveMountedRide != null)
         {
             SetFocus(null);
@@ -56,26 +54,31 @@ void Update()
 
         UpdateFocus();
 
-        // Клавиатура — дополнительный способ управления.
-        // Основной способ (мышь) обрабатывается в MouseGameplayController:
-        // он сам выбирает цель по лучу и вызывает InteractWith().
         if (Input.GetKeyDown(interactKey)) Interact();
         if (Input.GetKeyDown(useKey)) UseOrThrow();
     }
 
-    /// <summary>
-    /// Найти интерактивный объект по лучу (для мышиного клика).
-    /// Возвращает null, если под лучом ничего подходящего нет.
-    /// </summary>
-    public IInteractable FindTarget(Ray ray, float maxDistance)
+    /// <summary>F: бросаем предмет из рук, иначе используем предмет инвентаря.</summary>
+    void UseOrThrow()
     {
-        if (playerCamera == null) return null;
+        if (physicsHold != null && physicsHold.IsHolding)
+        {
+            physicsHold.Throw();
+            return;
+        }
 
-        float distance = maxDistance > 0f ? maxDistance : interactDistance;
-        int count = Physics.SphereCastNonAlloc(ray, sphereRadius, hits, distance, interactMask, QueryTriggerInteraction.Collide);
+        if (inventory != null) inventory.UseEquipped(this);
+    }
 
-        IInteractable best = null;
+    void UpdateFocus()
+    {
+        IInteractable found = null;
         float bestDistance = float.MaxValue;
+
+        // Луч строго из центра экрана — как прицел. Небольшой радиус сферы
+        // прощает неточное наведение на мелкие объекты (кнопки, вентили).
+        Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+        int count = Physics.SphereCastNonAlloc(ray, sphereRadius, hits, interactDistance, interactMask, QueryTriggerInteraction.Collide);
 
         for (int i = 0; i < count; i++)
         {
@@ -87,46 +90,11 @@ void Update()
             IInteractable candidate = ResolveInteractable(hit.collider);
             if (candidate == null) continue;
 
-            best = candidate;
+            found = candidate;
             bestDistance = hit.distance;
         }
 
-        return best;
-    }
-
-    /// <summary>Взаимодействовать с конкретным объектом (мышиный клик).</summary>
-    public void InteractWith(IInteractable target)
-    {
-        if (target == null) return;
-        SetFocus(target);
-        Interact();
-    }
-
-    /// <summary>F: бросаем предмет из рук, иначе используем предмет инвентаря.</summary>
-/// <summary>F: бросаем предмет из рук, иначе используем предмет инвентаря.</summary>
-public void UseOrThrow()
-{
-    if (physicsHold != null && physicsHold.IsHolding)
-    {
-        physicsHold.Throw();
-        return;
-    }
-
-    if (inventory != null) inventory.UseEquipped(this);
-}
-
-    void UpdateFocus()
-    {
-        Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-        SetFocus(FindTarget(ray, interactDistance));
-    }
-
-    /// <summary>
-    /// Обновляет фокус по произвольному лучу (мышиное управление: луч из курсора).
-    /// </summary>
-    public void UpdateFocusFromRay(Ray ray)
-    {
-        SetFocus(FindTarget(ray, interactDistance));
+        SetFocus(found);
     }
 
     /// <summary>

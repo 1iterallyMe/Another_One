@@ -142,7 +142,7 @@ def architecture_graph():
 
     # --- Ядро цикла ---
     box(120, 378, 300, 70, "PropsSpawner", "загрузка -> валидация -> Instantiate\nF2: переключение набора", ACCENT2, (38, 33, 24))
-    box(500, 378, 300, 70, "PlayerInteractor", "луч -> поиск цели -> действие\nE / клик мышью", ACCENT2, (38, 33, 24))
+    box(500, 378, 300, 70, "PlayerInteractor", "луч -> поиск цели -> действие\nклавиша E", ACCENT2, (38, 33, 24))
     box(880, 378, 300, 70, "FPSController", "движение, обзор, прыжок\nWASD / мышь", ACCENT2, (38, 33, 24))
     box(1230, 378, 290, 70, "IInteractable", "контракт: CanInteract / Interact\nSetFocused", ACCENT2, (38, 33, 24))
 
@@ -154,9 +154,9 @@ def architecture_graph():
     box(1210, 528, 240, 62, "CodeMonitor", "ввод кода мышью", GREEN)
 
     # --- UI ---
-    box(380, 738, 250, 62, "MouseHud", "кнопки действий, клавиатура", ACCENT)
-    box(670, 738, 250, 62, "MouseGameplayController", "обзор, click-to-move", ACCENT)
-    box(960, 738, 250, 62, "HealthBarUI / DeathScreen", "HP, «ВЫ УМЕРЛИ»", ACCENT)
+    box(380, 738, 250, 62, "GrabManager / InventoryUI", "инвентарь, предметы", ACCENT)
+    box(670, 738, 250, 62, "HealthBarUI / DeathScreen", "HP, «ВЫ УМЕРЛИ»", ACCENT)
+    box(960, 738, 250, 62, "CodeMonitor", "ввод кода", ACCENT)
 
     # --- Связи ---
     elbow(d, (215, 210), (215, 263), ACCENT)
@@ -245,7 +245,7 @@ def algorithm_flowchart():
     rect(150, 632, 560, 52, "Instantiate() + Physics.SyncTransforms()\nобнуление скоростей, Rigidbody.Sleep()", ACCENT)
     arrow(d, (430, 684), (430, 712))
 
-    diamond(cx, 772, 460, 120, "Игрок кликнул\nмышью по объекту?", ACCENT2)
+    diamond(cx, 772, 460, 120, "Игрок нажал E\n(взаимодействие)?", ACCENT2)
     arrow(d, (430, 772), (430, 832))
 
     rect(150, 832, 560, 52, "PlayerInteractor: луч -> цель\nвыполнить действие (взять/нажать)", GREEN, (26, 40, 30))
@@ -266,7 +266,7 @@ def algorithm_flowchart():
     d.line([(470, 372), (470, 404)], fill=ACCENT, width=2)
     arrow(d, (470, 404), (430, 404), ACCENT, 2)
 
-    # ветка "нет клика" — влево
+    # ветка "нет нажатия" — влево
     d.line([(200, 772), (90, 772)], fill=MUTED, width=2)
     arrow(d, (90, 772), (90, 560), MUTED, 2)
     d.text((96, 760), "нет: ждём", font=f_small, fill=MUTED)

@@ -50,32 +50,33 @@ GITHUB_URL = "https://github.com/1iterallyMe/Another_One"
 VIDEO_URL = "https://drive.google.com/drive/folders/1Y7NNo3TI36tQvV_y_r6DEoGsyR4OzP-U"
 
 
-def set_text(shape, lines, size=16, bold=False, color=TEXT):
+def set_text(shape, lines, size=16, bold=False, color=TEXT, space_after=4):
     tf = shape.text_frame
     tf.word_wrap = True
 
-    for p in list(tf.paragraphs)[1:]:
+    # Удаляем ВСЕ абзацы, включая первый: в первом могут остаться старые run'ы
+    # (иначе заголовок дублируется).
+    for p in list(tf.paragraphs):
         p._p.getparent().remove(p._p)
 
-    first = tf.paragraphs[0]
     for i, item in enumerate(lines):
         if isinstance(item, tuple):
             text, opts = item
         else:
             text, opts = item, {}
 
-        p = first if i == 0 else tf.add_paragraph()
+        p = tf.add_paragraph()
         run = p.add_run()
         run.text = text
         run.font.size = Pt(opts.get("size", size))
         run.font.bold = opts.get("bold", bold)
         run.font.color.rgb = opts.get("color", color)
         run.font.name = "Arial"
-        p.space_after = Pt(opts.get("space_after", 4))
+        p.space_after = Pt(opts.get("space_after", space_after))
     return shape
 
 
-def add_textbox(slide, x, y, w, h, lines, size=16, bold=False, color=TEXT, fill=None):
+def add_textbox(slide, x, y, w, h, lines, size=16, bold=False, color=TEXT, fill=None, space_after=4):
     box = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
     if fill is not None:
         box.fill.solid()
@@ -86,7 +87,7 @@ def add_textbox(slide, x, y, w, h, lines, size=16, bold=False, color=TEXT, fill=
         box.fill.background()
         box.line.fill.background()
 
-    set_text(box, lines, size=size, bold=bold, color=color)
+    set_text(box, lines, size=size, bold=bold, color=color, space_after=space_after)
     return box
 
 
@@ -99,7 +100,15 @@ def add_picture(slide, path, x, y, w=None, h=None):
         kwargs["width"] = Inches(w)
     if h is not None:
         kwargs["height"] = Inches(h)
-    return slide.shapes.add_picture(path, Inches(x), Inches(y), **kwargs)
+    pic = slide.shapes.add_picture(path, Inches(x), Inches(y), **kwargs)
+    # Не даём картинке вылезти за нижний край слайда (10 x 5.625 дюйма).
+    max_bottom = Inches(5.45)
+    bottom = pic.top + pic.height
+    if bottom > max_bottom:
+        scale = (max_bottom - pic.top) / pic.height
+        pic.width = int(pic.width * scale)
+        pic.height = int(pic.height * scale)
+    return pic
 
 
 def replace_shape(slide, shape_id, lines, size=16, bold=False, color=TEXT):
@@ -111,6 +120,31 @@ def replace_shape(slide, shape_id, lines, size=16, bold=False, color=TEXT):
 
 def delete_shape(shape):
     shape._element.getparent().remove(shape._element)
+
+
+def delete_shapes(slide, ids):
+    """Удаляет фигуры шаблона по их shape_id."""
+    for sh in list(slide.shapes):
+        if sh.shape_id in ids:
+            delete_shape(sh)
+
+
+def set_title(slide, shape_id, text, size=24):
+    """Ставит заголовок слайда в одну строку по всей ширине."""
+    for sh in slide.shapes:
+        if sh.shape_id == shape_id:
+            set_text(sh, [(text, {"size": size, "bold": True, "color": ACCENT})])
+            sh.left = Inches(0.59)
+            sh.top = Inches(0.5)
+            sh.width = Inches(8.9)
+            sh.height = Inches(0.45)
+            return sh
+    return None
+
+
+def caption(slide, x, y, w, text, size=13):
+    """Подпись под заголовком слайда."""
+    return add_textbox(slide, x, y, w, 0.32, [(text, {"size": size})])
 
 
 def build():
@@ -144,8 +178,9 @@ def build():
          {"size": 15}),
         ("Движок и версия указаны на титульном слайде: Unity 6000.3.10f1 (URP 17.3, "
          "Input System 1.18). Сборка — для Windows.", {"size": 15}),
-        ("Всё прохождение — мышью; клавиатура (WASD, Space, E, F) остаётся "
-         "дополнительным способом управления.", {"size": 15}),
+        ("Управление: WASD — движение, мышь — обзор, Space — прыжок, "
+         "Left Shift — бег, Left Ctrl — присед, E — взаимодействие, "
+         "F — использовать/бросить, Esc — освободить курсор.", {"size": 15}),
     ])
 
     # ---------- Слайд 3 — уровень реализации ----------
@@ -183,91 +218,87 @@ def build():
 
     # ---------- Слайд 5 — демонстрация механики ----------
     s = prs.slides[4]
-    replace_shape(s, 87, [
-        ("Игрок играет: «взять предмет → применить по назначению → изменить "
-         "состояние мира».", {"size": 15}),
-    ])
-    for sh in list(s.shapes):
-        if sh.shape_id == 86:
-            delete_shape(sh)
-    add_textbox(s, 0.56, 1.45, 4.35, 3.9, [
-        ("Центральный цикл замкнут:", {"size": 16, "bold": True, "color": ACCENT}),
-        ("1. Действие игрока — клик мышью по предмету, кнопке или сокету.", {"size": 14}),
-        ("2. Изменение состояния — предмет попадает в руку, топливо заливается в "
-         "генератор, кабель вставляется в сокет, деталь зиплайна присоединяется.",
-         {"size": 14}),
-        ("3. Видимый результат — включается питание, уезжает стена, открывается "
-         "проход, загорается индикатор генератора.", {"size": 14}),
+    delete_shapes(s, {86, 87})
+    set_title(s, 84, "Демонстрация механики")
+    caption(s, 0.56, 1.0, 8.9,
+            "Игрок играет: «взять предмет → применить по назначению → изменить состояние мира».")
+
+    add_textbox(s, 0.56, 1.38, 4.35, 4.0, [
+        ("Центральный цикл замкнут:", {"size": 14, "bold": True, "color": ACCENT}),
+        ("1. Действие игрока — навести прицел на предмет, кнопку или сокет "
+         "и нажать E.", {"size": 12}),
+        ("2. Изменение состояния — предмет в руке, топливо в генераторе, кабель "
+         "в сокете, деталь зиплайна присоединена.", {"size": 12}),
+        ("3. Видимый результат — питание включено, стена уехала, проход открыт, "
+         "горит индикатор генератора.", {"size": 12}),
         ("4. Новое действие — открывшиеся возможности меняют следующий выбор "
-         "игрока (например, запитать монитор кода и открыть дверь).", {"size": 14}),
-        ("", {"size": 6}),
-        ("Типичный сценарий (5 модулей):", {"size": 15, "bold": True, "color": ORANGE}),
-        ("MouseGameplayController (клик) → PlayerInteractor (луч, выбор цели) → "
+         "(например, запитать монитор кода и открыть дверь).", {"size": 12}),
+        ("", {"size": 5}),
+        ("Типичный сценарий (5 модулей):", {"size": 13, "bold": True, "color": ORANGE}),
+        ("FPSController (движение и обзор) → PlayerInteractor (луч от камеры, "
+         "выбор цели) → "
          "PickupObject / GeneratorController / WallLiftSwitch / CodeMonitor "
-         "(действие) → PlayerHealth, SecretCodeManager, PropsSpawner (изменение "
-         "состояния) → MouseHud / HealthBarUI (видимый результат).", {"size": 13}),
+         "(действие) → PlayerHealth, SecretCodeManager, PropsSpawner (состояние) → "
+         "HealthBarUI (результат).", {"size": 11}),
     ], fill=PANEL)
 
-    add_textbox(s, 5.1, 1.45, 4.35, 3.9, [
-        ("Ответственность и входы/выходы модулей:", {"size": 16, "bold": True, "color": ACCENT}),
-        ("props_config.json — вход: нет; выход: «какие предметы и где».", {"size": 13}),
+    add_textbox(s, 5.08, 1.38, 4.35, 4.0, [
+        ("Ответственность и входы/выходы модулей:", {"size": 14, "bold": True, "color": ACCENT}),
+        ("props_config.json — вход: нет; выход: «какие предметы и где».", {"size": 11}),
         ("PropsConfig — вход: нет; выход: типы PropsConfig / PropEntry / Prefab "
-         "(только описание формата).", {"size": 13}),
-        ("PropsSpawner — вход: файл данных + реестр префабов; выход: экземпляры "
-         "предметов в сцене, запись в лог, переключение набора по F2.", {"size": 13}),
+         "(только описание формата).", {"size": 11}),
+        ("PropsSpawner — вход: файл + реестр префабов; выход: экземпляры предметов "
+         "в сцене, лог, переключение набора по F2.", {"size": 11}),
         ("PlayerInteractor — вход: луч; выход: выбранная цель и выполненное действие.",
-         {"size": 13}),
+         {"size": 11}),
         ("IInteractable — контракт: CanInteract / Interact / SetFocused; реализуют "
-         "PickupObject, GeneratorController, WallLiftSwitch, CodeMonitor, "
-         "ZiplineController.", {"size": 13}),
+         "PickupObject, GeneratorController, WallLiftSwitch, CodeMonitor.", {"size": 11}),
         ("FPSController — вход: движение/обзор/прыжок; выход: скорость и положение "
-         "игрока, анимация.", {"size": 13}),
-        ("PickupObject — вход: игрок, физика; выход: предмет в руках / брошен.", {"size": 13}),
-        ("CodeMonitor — вход: цифры кода; выход: проверка и открытие двери.", {"size": 13}),
-    ], fill=PANEL)
+         "игрока, анимация.", {"size": 11}),
+        ("PickupObject — вход: игрок, физика; выход: предмет в руках / брошен.", {"size": 11}),
+        ("CodeMonitor — вход: цифры кода; выход: проверка и открытие двери.", {"size": 11}),
+    ], fill=PANEL, space_after=1)
 
     # ---------- Слайд 6 — демонстрация работы механики ----------
     s = prs.slides[5]
-    replace_shape(s, 94, [
-        ("Трагедия в 4 актах: как предмет из данных становится частью игрового мира",
-         {"size": 15}),
-    ])
-    for sh in list(s.shapes):
-        if sh.shape_id == 95:
-            delete_shape(sh)
-    add_picture(s, os.path.join(SCHEMAS, "algorithm_flowchart.png"), 0.45, 1.35, w=5.35)
-    add_textbox(s, 6.0, 1.35, 3.55, 3.85, [
+    delete_shapes(s, {94, 95})
+    set_title(s, 92, "Демонстрация работы механики")
+    caption(s, 0.56, 1.0, 8.9,
+            "Трагедия в 4 актах: как предмет из данных становится частью игрового мира")
+
+    add_picture(s, os.path.join(SCHEMAS, "algorithm_flowchart.png"), 0.45, 1.4, w=5.25)
+    add_textbox(s, 5.9, 1.4, 3.55, 4.0, [
         ("Блок-схема: ветвления и отказоустойчивость",
-         {"size": 15, "bold": True, "color": ACCENT}),
+         {"size": 13, "bold": True, "color": ACCENT}),
         ("«Файл данных прочитан?» — нет → лог «данные повреждены», предметы не "
-         "создаются, игра продолжается.", {"size": 12}),
+         "создаются, игра продолжается.", {"size": 10}),
         ("«Запись валидна?» — нет → лог «запись пропущена», остальные записи "
-         "создаются.", {"size": 12}),
-        ("«Игрок кликнул мышью?» — нет → ждём следующего кадра.", {"size": 12}),
-        ("", {"size": 6}),
-        ("Места настройки:", {"size": 14, "bold": True, "color": ORANGE}),
-        ("• Данные: Assets/StreamingAssets/props_config*.json", {"size": 12}),
-        ("• Реестр префабов: массив prefabs на компоненте PropsSpawner", {"size": 12}),
-        ("• Параметры игрока: FPSController (скорость, прыжок, присед)", {"size": 12}),
-        ("• Правила механик: GeneratorController (бак, расход), CodeMonitor "
-         "(длина кода)", {"size": 12}),
-        ("• Интерфейс: MouseHud (размеры панелей, подписи)", {"size": 12}),
-    ], fill=PANEL)
+         "создаются.", {"size": 10}),
+        ("«Игрок нажал E?» — нет → ждём следующего кадра.", {"size": 10}),
+        ("", {"size": 4}),
+        ("Места настройки:", {"size": 12, "bold": True, "color": ORANGE}),
+        ("• Данные: Assets/StreamingAssets/props_config*.json", {"size": 10}),
+        ("• Реестр префабов: массив prefabs на PropsSpawner", {"size": 10}),
+        ("• Параметры игрока: FPSController (скорость, прыжок, присед)", {"size": 10}),
+        ("• Правила механик: GeneratorController (бак, расход), "
+         "SecretCodeManager (длина кода)", {"size": 10}),
+        ("• Интерфейс: HealthBarUI, DeathScreen, CodeMonitor (размеры панелей, подписи)", {"size": 10}),
+    ], fill=PANEL, space_after=1)
 
     # ---------- Слайд 7 — вводные механики ----------
     s = prs.slides[6]
-    for sh in list(s.shapes):
-        if sh.shape_id in (102, 103, 104):
-            delete_shape(sh)
-    add_picture(s, os.path.join(SCHEMAS, "data_schema.png"), 0.4, 1.35, w=5.5)
-    add_textbox(s, 6.1, 1.1, 3.5, 4.15, [
-        ("Схема данных: где что хранится", {"size": 15, "bold": True, "color": ACCENT}),
+    delete_shapes(s, {102, 103, 104})
+    set_title(s, 100, "Демонстрация вводных механики")
+    caption(s, 0.56, 1.0, 8.9,
+            "Схема данных: где что хранится, кто читает и кто пишет.")
+    add_picture(s, os.path.join(SCHEMAS, "data_schema.png"), 0.4, 1.38, w=5.45)
+    add_textbox(s, 6.05, 1.38, 3.4, 4.0, [
         ("Структура конфигурации:", {"size": 13, "bold": True, "color": ORANGE}),
-        ('{ "title": string,', {"size": 12}),
-        ('  "props": [ { "prefab": string,', {"size": 12}),
-        ('                "x": float, "y": float, "z": float,', {"size": 12}),
-        ('                "rotX": float, "rotY": float,', {"size": 12}),
-        ('                "rotZ": float } ] }', {"size": 12}),
+        ('{ "title": string,', {"size": 11}),
+        ('  "props": [ { "prefab": string,', {"size": 11}),
+        ('                "x": float, "y": float, "z": float,', {"size": 11}),
+        ('                "rotX": float, "rotY": float,', {"size": 11}),
+        ('                "rotZ": float } ] }', {"size": 11}),
         ("", {"size": 4}),
         ("Заполненный пример (props_config.json):", {"size": 13, "bold": True, "color": ORANGE}),
         ('{ "prefab": "Jerrycan", "x": 1.94, "y": 1.03,', {"size": 11}),
@@ -276,57 +307,57 @@ def build():
         ("Кто читает и пишет:", {"size": 13, "bold": True, "color": ORANGE}),
         ("PropsSpawner.LoadConfig() читает файл; Sanitize() отбрасывает негодные "
          "записи; Rebuild() создаёт и уничтожает предметы. Логика не содержит ни "
-         "одной координаты и ни одного имени предмета.", {"size": 12}),
+         "одной координаты и ни одного имени предмета.", {"size": 11}),
     ], fill=PANEL)
 
     # ---------- Слайд 8 — демонстрация N ----------
     s = prs.slides[7]
-    replace_shape(s, 109, [
-        ("Демонстрация N: расширение через данные (уровень «Продвинутый»)",
-         {"size": 22, "bold": True, "color": ACCENT}),
-    ])
-    add_textbox(s, 0.5, 1.12, 4.5, 4.15, [
+    set_title(s, 109, "Демонстрация N: расширение через данные", size=22)
+    caption(s, 0.56, 1.0, 8.9,
+            "Уровень «Продвинутый»: новый элемент добавляется ТОЛЬКО правкой данных.")
+    add_textbox(s, 0.5, 1.4, 4.5, 4.0, [
         ("Инструкция «как добавить элемент данными»",
-         {"size": 15, "bold": True, "color": ACCENT}),
-        ("1. Открыть Assets/StreamingAssets/props_config.json.", {"size": 13}),
+         {"size": 13, "bold": True, "color": ACCENT}),
+        ("1. Открыть Assets/StreamingAssets/props_config.json.", {"size": 11}),
         ("2. Дописать в массив props новый объект: имя существующего префаба + "
-         "координаты + поворот.", {"size": 13}),
-        ("3. Сохранить файл и запустить игру — предмет появляется в комнате.", {"size": 13}),
-        ("4. Для демонстрации в билде: F2 переключает наборы 6 ⇄ 7 предметов.", {"size": 13}),
-        ("Код при этом не меняется.", {"size": 13, "bold": True, "color": GREEN}),
-        ("", {"size": 5}),
-        ("Исходный вариант данных (6 предметов):", {"size": 13, "bold": True, "color": ORANGE}),
-        ('{ "prefab": "Trampoline", "x": 7.5, "y": 0.0,', {"size": 11}),
-        ('  "z": -1.5, "rotX": 0, "rotY": 0, "rotZ": 0 }', {"size": 11}),
+         "координаты + поворот.", {"size": 11}),
+        ("3. Сохранить файл и запустить игру — предмет появляется в комнате.",
+         {"size": 11}),
+        ("4. Для демонстрации в билде: F2 переключает наборы 6 ⇄ 7 предметов.",
+         {"size": 11}),
+        ("Код при этом не меняется.", {"size": 11, "bold": True, "color": GREEN}),
         ("", {"size": 4}),
-        ("Изменённый вариант данных (7 предметов):", {"size": 13, "bold": True, "color": ORANGE}),
-        ('{ "prefab": "Vase", "x": 5.0, "y": 1.2, "z": 6.0,', {"size": 11}),
-        ('  "rotX": 0, "rotY": 0, "rotZ": 0 }', {"size": 11}),
-        ("(добавлена одна строка данных — Vase)", {"size": 11, "color": MUTED}),
+        ("Исходный вариант данных (6 предметов):", {"size": 12, "bold": True, "color": ORANGE}),
+        ('{ "prefab": "Trampoline", "x": 7.5, "y": 0.0,', {"size": 10}),
+        ('  "z": -1.5, "rotX": 0, "rotY": 0, "rotZ": 0 }', {"size": 10}),
+        ("", {"size": 4}),
+        ("Изменённый вариант данных (7 предметов):", {"size": 12, "bold": True, "color": ORANGE}),
+        ('{ "prefab": "Vase", "x": 5.0, "y": 1.2, "z": 6.0,', {"size": 10}),
+        ('  "rotX": 0, "rotY": 0, "rotZ": 0 }', {"size": 10}),
+        ("(добавлена одна строка данных — Vase)", {"size": 10, "color": MUTED}),
     ], fill=PANEL)
 
-    add_textbox(s, 5.2, 1.12, 4.35, 2.0, [
-        ("Масштабируемость модулей", {"size": 15, "bold": True, "color": ACCENT}),
+    add_textbox(s, 5.2, 1.4, 4.35, 1.95, [
+        ("Масштабируемость модулей", {"size": 13, "bold": True, "color": ACCENT}),
         ("Модули независимы: PropsSpawner ничего не знает про PickupObject, "
-         "CodeMonitor — про генератор. Удаление или замена одного модуля не "
-         "ломает остальные — каждый отвечает за свою зону и общается через "
-         "контракт IInteractable и файлы данных.", {"size": 13}),
-        ("Новый тип предмета = новый префаб в реестре + запись в JSON.", {"size": 13}),
-        ("Новая механика = новый класс, реализующий IInteractable, + запись в JSON.",
-         {"size": 13}),
-    ], fill=PANEL)
+         "CodeMonitor — про генератор. Замена одного модуля не ломает остальные: "
+         "каждый отвечает за свою зону и общается через контракт IInteractable "
+         "и файлы данных.", {"size": 11}),
+        ("Новый тип предмета = новый префаб в реестре + запись в JSON.", {"size": 11}),
+        ("Новая механика = новый класс IInteractable + запись в JSON.", {"size": 11}),
+    ], fill=PANEL, space_after=1)
 
-    add_textbox(s, 5.2, 3.3, 4.35, 1.95, [
-        ("Внешняя настройка (без правки кода)", {"size": 15, "bold": True, "color": ACCENT}),
-        ("• Состав комнаты — props_config.json", {"size": 13}),
-        ("• Позиции и повороты предметов — props_config.json", {"size": 13}),
-        ("• Скорость, прыжок, присед — FPSController (инспектор)", {"size": 13}),
-        ("• Бак и расход топлива — GeneratorController (инспектор)", {"size": 13}),
-        ("• Длина кода двери — SecretCodeManager (инспектор)", {"size": 13}),
-        ("• Раскладка и подписи экранных кнопок — MouseHud (инспектор)", {"size": 13}),
+    add_textbox(s, 5.2, 3.45, 4.35, 1.95, [
+        ("Внешняя настройка (без правки кода)", {"size": 13, "bold": True, "color": ACCENT}),
+        ("• Состав комнаты — props_config.json", {"size": 11}),
+        ("• Позиции и повороты предметов — props_config.json", {"size": 11}),
+        ("• Скорость, прыжок, присед — FPSController (инспектор)", {"size": 11}),
+        ("• Бак и расход топлива — GeneratorController (инспектор)", {"size": 11}),
+        ("• Длина кода двери — SecretCodeManager (инспектор)", {"size": 11}),
+        ("• Подписи панелей интерфейса — HealthBarUI / CodeMonitor (инспектор)", {"size": 11}),
         ("Файлы данных меняются без пересборки кода: игра читает их при старте.",
-         {"size": 12, "color": MUTED}),
-    ], fill=PANEL)
+         {"size": 10, "color": MUTED}),
+    ], fill=PANEL, space_after=1)
 
     # ---------- Слайд 9 — видео-отчёт ----------
     s = prs.slides[8]
@@ -363,14 +394,16 @@ def to_pdf(pptx_path):
         print("stderr:", res.stderr.strip()[:800])
 
     produced = os.path.join(outdir, os.path.splitext(os.path.basename(pptx_path))[0] + ".pdf")
-    if os.path.exists(produced):
+    if not os.path.exists(produced):
+        print("PDF не создан! LibreOffice не выдал файл:", produced)
+        sys.exit(1)
+
+    if os.path.abspath(produced) != os.path.abspath(OUT_PDF):
         if os.path.exists(OUT_PDF):
             os.remove(OUT_PDF)
         os.replace(produced, OUT_PDF)
-        print("PDF:", OUT_PDF, os.path.getsize(OUT_PDF), "байт")
-    else:
-        print("PDF не создан!")
-        sys.exit(1)
+
+    print("PDF:", OUT_PDF, os.path.getsize(OUT_PDF), "байт")
 
 
 if __name__ == "__main__":

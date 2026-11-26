@@ -62,11 +62,12 @@ namespace AnotherOne.EditorTools
             TMP_FontAsset old = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(AssetPath);
             if (old != null) AssetDatabase.DeleteAsset(AssetPath);
 
+            // Динамический атлас: TMP добирает глифы из TTF в рантайме.
+            // ВАЖНО: в TMP Settings выключено «Clear Dynamic Data On Build»
+            // (m_ClearDynamicDataOnBuild: 0) — иначе Unity стирает нарисованные
+            // глифы при сборке, и кириллица пропадает из билда.
             TMP_FontAsset asset = TMP_FontAsset.CreateFontAsset(source);
             asset.name = FontAssetName;
-
-            // Динамический режим: TMP сам добирает глифы из TTF в рантайме.
-            // Работает и в билде, если у текстуры атласа включён Read/Write.
             asset.atlasPopulationMode = AtlasPopulationMode.Dynamic;
 
             // Засеваем атлас символами: только так глифы попадут в шрифт.
