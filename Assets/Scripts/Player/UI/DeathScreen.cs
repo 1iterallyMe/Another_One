@@ -45,6 +45,17 @@ public class DeathScreen : MonoBehaviour
         if (shown) return;
         shown = true;
 
+        // Экран может лежать в сцене выключенным: тогда Awake не вызывался,
+        // CanvasGroup не инициализирован и корутину запустить нельзя.
+        if (!gameObject.activeSelf) gameObject.SetActive(true);
+        if (group == null) group = GetComponent<CanvasGroup>();
+        if (group != null)
+        {
+            group.alpha = 0f;
+            group.interactable = false;
+            group.blocksRaycasts = false;
+        }
+
         // Если текст передан, меняем его на экране
         if (titleText != null && !string.IsNullOrEmpty(message))
         {
