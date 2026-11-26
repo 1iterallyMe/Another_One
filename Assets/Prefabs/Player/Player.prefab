@@ -56,6 +56,7 @@ GameObject:
   - component: {fileID: 7000000000000000003}
   - component: {fileID: 7000000000000000004}
   - component: {fileID: 2115088303995195294}
+  - component: {fileID: 6505113342009192267}
   m_Layer: 3
   m_Name: Player
   m_TagString: Player
@@ -500,6 +501,29 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &6505113342009192267
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2627318565707514161}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b73c251d9cb749769bd94fdf67a2c16, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MouseGameplayController
+  controller: {fileID: 135952248070232895}
+  interactor: {fileID: 7000000000000000001}
+  viewCamera: {fileID: 7504197167460797624}
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 4294967287
+  stopDistance: 0.4
+  maxMoveDistance: 30
+  dragThresholdPixels: 8
+  clickMaxSeconds: 0.5
+  dragLookDegreesPerPixel: 0.2
 --- !u!1 &2736104012473819794
 GameObject:
   m_ObjectHideFlags: 0
@@ -1453,6 +1477,7 @@ GameObject:
   - component: {fileID: 3525927962404134508}
   - component: {fileID: 3144229241391044329}
   - component: {fileID: 6147027466600087634}
+  - component: {fileID: 9000761901163075156}
   m_Layer: 3
   m_Name: Canvas
   m_TagString: Untagged
@@ -1546,6 +1571,29 @@ MonoBehaviour:
   m_BlockingMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &9000761901163075156
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8553754051500981046}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4bf5fdaa5304e460eb15367d21fc4f1f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MouseHud
+  gameplay: {fileID: 6505113342009192267}
+  codeMonitor: {fileID: 0}
+  canvas: {fileID: 3525927962404134508}
+  panelColor: {r: 0, g: 0, b: 0, a: 0.55}
+  buttonColor: {r: 1, g: 1, b: 1, a: 0.12}
+  buttonHighlight: {r: 1, g: 0.85, b: 0.2, a: 0.9}
+  textColor: {r: 1, g: 1, b: 1, a: 1}
+  panelSize: {x: 520, y: 120}
+  panelOffset: {x: -24, y: 24}
+  keypadSize: {x: 360, y: 260}
+  keypadOffset: {x: 24, y: 24}
 --- !u!1 &8624716775724422044
 GameObject:
   m_ObjectHideFlags: 0
@@ -1882,6 +1930,8 @@ MonoBehaviour:
   restartButton: {fileID: 4610949749211170194}
   menuButton: {fileID: 3847592044464503445}
   defaultTitle: You are death
+  restartLabel: "\u0417\u0410\u041D\u041E\u0412\u041E"
+  menuLabel: "\u0412 \u041C\u0415\u041D\u042E"
   menuSceneName: Menu_Scene
   fadeTime: 1
   pauseWhenShown: 1

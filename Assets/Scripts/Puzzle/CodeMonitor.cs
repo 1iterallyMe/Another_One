@@ -124,7 +124,10 @@ public class CodeMonitor : InteractableBase
             display = GetComponentInChildren<TMP_Text>(true);
 
         if (display != null)
+        {
             displayBaseColor = display.color;
+            ApplyCyrillicFont(display);
+        }
         else
             Debug.LogWarning("[CodeMonitor] Не найден TMP-текст для экрана. Назначьте Display в инспекторе.", this);
 
@@ -136,6 +139,29 @@ public class CodeMonitor : InteractableBase
             _ = MoveSound.GeneratedMoveClip;
 
         RefreshDisplay();
+    }
+
+    /// <summary>
+    /// Назначает экрану шрифт с кириллицей: надписи «ДОСТУП РАЗРЕШЁН» и
+    /// «НЕВЕРНЫЙ КОД» без кириллицы в шрифте просто не рисуются.
+    /// </summary>
+    private static void ApplyCyrillicFont(TMP_Text target)
+    {
+        if (target == null) return;
+
+        var fonts = Resources.FindObjectsOfTypeAll<TMPro.TMP_FontAsset>();
+        foreach (var f in fonts)
+        {
+            if (f == null) continue;
+            if (f.name == "LiberationSansCyrillic SDF")
+            {
+                target.font = f;
+                return;
+            }
+        }
+
+        if (TMPro.TMP_Settings.defaultFontAsset != null)
+            target.font = TMPro.TMP_Settings.defaultFontAsset;
     }
 
     private void Start()
