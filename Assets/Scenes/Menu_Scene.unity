@@ -5421,7 +5421,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a4bb6795f36534bb981d4980327b4454, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MainMenu
-  gameSceneName: Amir
+  gameSceneName: Game
   creditsSceneName: Credits_Scene
   playButton: {fileID: 1361986448}
   creditsButton: {fileID: 523823126}

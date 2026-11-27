@@ -12276,7 +12276,7 @@ MonoBehaviour:
   useUnscaledTime: 1
   playOnStart: 1
   menuSceneName: Menu_Scene
-  fallbackSceneName: Amir
+  fallbackSceneName: Game
   endDelay: 3
   loadAsync: 1
   allowSkip: 1
