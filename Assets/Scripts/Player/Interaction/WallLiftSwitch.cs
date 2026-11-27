@@ -801,6 +801,7 @@ public class WallLiftSwitch : InteractableBase
         if ((wall.position - targetPosition).sqrMagnitude <= 0.0001f)
         {
             wall.position = targetPosition;
+            Physics.SyncTransforms();
             yield break;
         }
 
@@ -810,9 +811,15 @@ public class WallLiftSwitch : InteractableBase
                 wall.position,
                 targetPosition,
                 movementSpeed * Time.deltaTime);
+
+            // Auto Sync Transforms выключен в проекте: без этого коллайдер двери
+            // отстаёт от меша и луч игрока на кадр «видит» дверь на старом месте.
+            Physics.SyncTransforms();
+
             yield return null;
         }
 
         wall.position = targetPosition;
+        Physics.SyncTransforms();
     }
 }

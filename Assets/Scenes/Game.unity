@@ -45709,7 +45709,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7000000000000000001, guid: 12c1bb88553bb434592a70e3a04e538b, type: 3}
       propertyPath: interactDistance
-      value: 2
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 7113851718366540881, guid: 12c1bb88553bb434592a70e3a04e538b, type: 3}
       propertyPath: m_IsActive

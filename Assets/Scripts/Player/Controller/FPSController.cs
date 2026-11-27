@@ -172,17 +172,42 @@ public class FPSController : MonoBehaviour
 
         originalHeight = col.height;
         originalCenter = col.center;
+
+        // Стартовый поворот берём из сцены: иначе первый же кадр Look()
+        // обнулял yaw и игрок оказывался развёрнут не туда, куда поставлен.
+        yaw = transform.eulerAngles.y;
     }
 
     void Start()
     {
         if (cameraJoint == null) cameraJoint = transform;
 
-        if (lockCursor)
-        {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-        }
+        ApplyCursorState();
+    }
+
+    void OnEnable()
+    {
+        Application.focusChanged += OnApplicationFocusChanged;
+    }
+
+    void OnDisable()
+    {
+        Application.focusChanged -= OnApplicationFocusChanged;
+    }
+
+    // macOS снимает захват курсора, когда окно теряет фокус, и не возвращает его сам.
+    // Без этого игрок возвращается в окно и не может ни взаимодействовать, ни крутить камеру.
+    void OnApplicationFocusChanged(bool focused)
+    {
+        if (focused)
+            ApplyCursorState();
+    }
+
+    /// <summary>Привести курсор к состоянию lockCursor (захвачен/отпущен).</summary>
+    void ApplyCursorState()
+    {
+        Cursor.lockState = lockCursor ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !lockCursor;
     }
 
     void Update()
@@ -190,9 +215,13 @@ public class FPSController : MonoBehaviour
         if (Input.GetKeyDown(unlockCursorKey))
         {
             lockCursor = !lockCursor;
-            Cursor.lockState = lockCursor ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = !lockCursor;
+            ApplyCursorState();
         }
+
+        // Клик по окну после потери фокуса возвращает захват курсора,
+        // иначе игра остаётся с «мёртвым» курсором до повторного Esc.
+        if (lockCursor && Cursor.lockState != CursorLockMode.Locked && Input.GetMouseButtonDown(0))
+            ApplyCursorState();
 
         // Пока игрок вращает предмет правой кнопкой мыши — камера остаётся на месте.
         bool rotatingHeldItem = (grabManager != null && grabManager.IsRotatingEquippedItem) ||

@@ -438,6 +438,10 @@ public class GrabManager : MonoBehaviour
         oldComponent.transform.position = newWorldPos;
         oldComponent.transform.rotation = newWorldRot;
 
+        // Предмет возвращается в мир — сразу синхронизируем физику,
+        // иначе его нельзя схватить до следующего FixedUpdate.
+        Physics.SyncTransforms();
+
         SetItemVisible(oldComponent, true);
         SetItemAudio(oldComponent, true);
         SetItemCollider(oldComponent, true);

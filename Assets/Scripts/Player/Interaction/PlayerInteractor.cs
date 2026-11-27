@@ -37,7 +37,11 @@ public class PlayerInteractor : MonoBehaviour
         // Ленивая страховка: если камера не назначена/потеряна — не роняем кадр.
         if (!playerCamera) playerCamera = GetComponentInChildren<Camera>();
 
-        if (playerCamera == null || Cursor.lockState != CursorLockMode.Locked ||
+        // Курсор может быть отпущен самой ОС (macOS сбрасывает захват, когда окно
+        // теряет фокус и возвращает его). Раньше здесь стояла проверка
+        // Cursor.lockState == Locked — в билде это навсегда отключало E.
+        // Ориентируемся на фокус приложения: он же определяет, получаем ли мы ввод.
+        if (playerCamera == null || !Application.isFocused ||
             (inventory != null && inventory.IsInventoryHidden))
         {
             SetFocus(null);
@@ -79,6 +83,11 @@ public class PlayerInteractor : MonoBehaviour
         // прощает неточное наведение на мелкие объекты (кнопки, вентили).
         Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         int count = Physics.SphereCastNonAlloc(ray, sphereRadius, hits, interactDistance, interactMask, QueryTriggerInteraction.Collide);
+
+        // Страховка: сфера может промахнуться по тонкому коллайдеру (кнопка, листок)
+        // или начать каст внутри него. Тогда добираем цель обычным лучом.
+        if (count == 0)
+            count = Physics.RaycastNonAlloc(ray, hits, interactDistance, interactMask, QueryTriggerInteraction.Collide);
 
         for (int i = 0; i < count; i++)
         {

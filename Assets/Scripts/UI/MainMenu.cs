@@ -106,6 +106,21 @@ public class MainMenu : MonoBehaviour
         StartCoroutine(FadeInRoutine());
     }
 
+    private void Update()
+    {
+        if (loading)
+            return;
+
+        // Страховка от «потерянного» выделения: клавиатура в меню должна работать
+        // даже если EventSystem по какой-то причине сбросил выбранный объект.
+        if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject == null)
+            SelectFirstButton();
+
+        // Enter/Space как надёжная альтернатива клику.
+        if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Space))
+            StartGame();
+    }
+
     /// <summary>Кнопка «Играть».</summary>
     public void StartGame()
     {

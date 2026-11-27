@@ -102,6 +102,13 @@ public class Outline : MonoBehaviour {
   void OnEnable() {
     foreach (var renderer in renderers) {
 
+      // Меши без Read/Write нельзя ни прочитать (нормали), ни записать UV3 —
+      // такой рендерер пропускаем, иначе Unity пишет пачку ошибок и контур ломается.
+      var outlineMesh = GetOutlineMesh(renderer);
+      if (outlineMesh == null || !outlineMesh.isReadable) {
+        continue;
+      }
+
       // Append outline shaders
       var materials = renderer.sharedMaterials.ToList();
 
@@ -164,6 +171,11 @@ public class Outline : MonoBehaviour {
 
     foreach (var meshFilter in GetComponentsInChildren<MeshFilter>()) {
 
+      // Меш без Read/Write нельзя прочитать — пропускаем, чтобы не спамить ошибками.
+      if (meshFilter.sharedMesh == null || !meshFilter.sharedMesh.isReadable) {
+        continue;
+      }
+
       // Skip duplicates
       if (!bakedMeshes.Add(meshFilter.sharedMesh)) {
         continue;
@@ -185,7 +197,8 @@ public class Outline : MonoBehaviour {
       var mesh = meshFilter.sharedMesh;
 
       // Skip filters without a mesh (empty child MeshFilter in a prefab)
-      if (mesh == null) {
+      // и меши без Read/Write: чтение vertices/normals пишет ошибки в консоль.
+      if (mesh == null || !mesh.isReadable) {
         continue;
       }
 
@@ -219,6 +232,11 @@ public class Outline : MonoBehaviour {
         continue;
       }
 
+      // Меш без Read/Write: uv4 недоступен, запись UV3 упадёт с ошибкой.
+      if (!skinnedMesh.isReadable) {
+        continue;
+      }
+
       // Skip if UV3 has already been reset
       if (!registeredMeshes.Add(skinnedMesh)) {
         continue;
@@ -230,6 +248,16 @@ public class Outline : MonoBehaviour {
       // Combine submeshes
       CombineSubmeshes(skinnedMesh, skinnedMeshRenderer.sharedMaterials);
     }
+  }
+
+  /// <summary>Меш, который рисует рендерер (обычный или скиннед), либо null.</summary>
+  static Mesh GetOutlineMesh(Renderer renderer) {
+    if (renderer is SkinnedMeshRenderer skinned) {
+      return skinned.sharedMesh;
+    }
+
+    var meshFilter = renderer.GetComponent<MeshFilter>();
+    return meshFilter != null ? meshFilter.sharedMesh : null;
   }
 
   List<Vector3> SmoothNormals(Mesh mesh) {
