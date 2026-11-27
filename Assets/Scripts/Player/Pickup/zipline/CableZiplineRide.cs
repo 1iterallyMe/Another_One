@@ -77,6 +77,12 @@ public class CableZiplineRide : InteractableBase
     [SerializeField] private AudioClip[] dismountClips;
     [SerializeField, Range(0f, 1f)] private float dismountVolume = 0.8f;
 
+    /// <summary>
+    /// Рендереры, которые в префабе выключены намеренно (невидимые зоны
+    /// наведения). Их нельзя включать при установке ручки на трос.
+    /// </summary>
+    private System.Collections.Generic.HashSet<Renderer> intentionallyHiddenRenderers;
+
     /// <summary>Активная поездка. PlayerInteractor блокирует обычное взаимодействие, пока это не null.</summary>
     public static CableZiplineRide ActiveMountedRide { get; private set; }
 
@@ -160,6 +166,10 @@ public class CableZiplineRide : InteractableBase
         ResolveGenerator(force: true);
         SetupAudio();
 
+        // Запоминаем рендереры, выключенные в префабе: их нельзя включать
+        // при установке ручки на трос (иначе проявятся невидимые зоны наведения).
+        CaptureIntentionallyHiddenRenderers();
+
         if (minY > maxY)
         {
             float swap = minY;
@@ -169,6 +179,21 @@ public class CableZiplineRide : InteractableBase
 
         if (autoDisableAtStart && !isInstalled)
             gameObject.SetActive(false);
+    }
+
+    /// <summary>
+    /// Запоминает рендереры, которые в префабе выключены намеренно.
+    /// </summary>
+    private void CaptureIntentionallyHiddenRenderers()
+    {
+        intentionallyHiddenRenderers = new System.Collections.Generic.HashSet<Renderer>();
+
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null && !renderers[i].enabled)
+                intentionallyHiddenRenderers.Add(renderers[i]);
+        }
     }
 
     /// <summary>
@@ -319,12 +344,12 @@ public class CableZiplineRide : InteractableBase
         if (!gameObject.activeSelf)
             gameObject.SetActive(true);
 
-        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
-        for (int i = 0; i < renderers.Length; i++)
-        {
-            if (renderers[i] != null)
-                renderers[i].enabled = true;
-        }
+        // Включаем только те рендереры, которые были выключены не намеренно.
+        // Например, у Zipline_Collider в префабе намеренно выключен MeshRenderer:
+        // это невидимая зона наведения, и включать её нельзя — иначе на ручке
+        // появляется серый параллелепипед. Такие рендереры запоминаем до
+        // SetActive и не трогаем.
+        EnableVisibleRenderers();
 
         ApplyInstalledColliders();
 
@@ -338,6 +363,36 @@ public class CableZiplineRide : InteractableBase
             Vector3 position = transform.position;
             position.y = Mathf.Clamp(position.y, minY, maxY);
             transform.position = position;
+        }
+    }
+
+    /// <summary>
+    /// Включает видимую часть ручки, не трогая рендереры, которые в префабе
+    /// выключены намеренно (невидимые зоны наведения вроде Zipline_Collider).
+    /// </summary>
+    private void EnableVisibleRenderers()
+    {
+        // Если Awake ещё не отработал (например, объект создан в редакторе),
+        // список скрытых рендереров пуст — собираем его прямо сейчас.
+        if (intentionallyHiddenRenderers == null)
+            CaptureIntentionallyHiddenRenderers();
+
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer == null) continue;
+
+            // Рендерер скрыт намеренно в префабе — не включаем (например,
+            // невидимая зона наведения Zipline_Collider). Явно выключаем:
+            // GrabManager при взятии предмета в руки включает все рендереры.
+            if (intentionallyHiddenRenderers.Contains(renderer))
+            {
+                renderer.enabled = false;
+                continue;
+            }
+
+            renderer.enabled = true;
         }
     }
 

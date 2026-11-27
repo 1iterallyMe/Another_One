@@ -35,8 +35,8 @@ public class CreditsRoll : MonoBehaviour
     [Header("Переход в меню")]
     [Tooltip("Имя сцены меню. Сцена должна быть добавлена в Build Settings.")]
     [SerializeField] private string menuSceneName = "Menu_Scene";
-    [Tooltip("Запасная сцена, если сцены меню нет в Build Settings. Можно оставить пустой.")]
-    [SerializeField] private string fallbackSceneName = "Amir";
+    [Tooltip("Запасная сцена, если сцены меню нет в Build Settings. Можно оставить пустую.")]
+    [SerializeField] private string fallbackSceneName = "Game";
     [Tooltip("Пауза после конца титров перед загрузкой меню, сек.")]
     [SerializeField, Min(0f)] private float endDelay = 0.5f;
     [Tooltip("Загружать сцену асинхронно.")]
