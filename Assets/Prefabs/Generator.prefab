@@ -156,7 +156,7 @@ MonoBehaviour:
   outline: {fileID: 4198206913519276752}
   createOutlineIfMissing: 1
   outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  outlineWidth: 10
+  outlineWidth: 5
   outlineMode: 1
   followForce: 600
   maxForce: 1500
@@ -892,7 +892,7 @@ MonoBehaviour:
   outline: {fileID: 7988520726277278729}
   createOutlineIfMissing: 0
   outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  outlineWidth: 10
+  outlineWidth: 5
   outlineMode: 1
   socketType: 0
   generator: {fileID: 6581921859653992195}
@@ -917,7 +917,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Outline
   outlineMode: 0
   outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  outlineWidth: 10
+  outlineWidth: 5
   precomputeOutline: 0
   bakeKeys: []
   bakeValues: []

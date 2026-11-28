@@ -501,7 +501,7 @@ MonoBehaviour:
   outline: {fileID: 9144174815414285198}
   createOutlineIfMissing: 0
   outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  outlineWidth: 10
+  outlineWidth: 5
   outlineMode: 1
   socketType: 0
   generator: {fileID: 0}
@@ -526,7 +526,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Outline
   outlineMode: 0
   outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  outlineWidth: 10
+  outlineWidth: 5
   precomputeOutline: 0
   bakeKeys: []
   bakeValues: []

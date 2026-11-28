@@ -32,7 +32,7 @@ Shader "Custom/Outline Fill" {
       Tags { "LightMode" = "UniversalForward" }
 
       Cull Off
-      ZTest Always
+      ZTest GEqual
       ZWrite Off
       Blend SrcAlpha OneMinusSrcAlpha
       ColorMask RGB
