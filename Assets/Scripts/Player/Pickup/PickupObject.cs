@@ -70,6 +70,11 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
     private Vector3 targetPosition;
     private Quaternion targetRotation = Quaternion.identity;
 
+    // Скорость точки удержания (нужна, чтобы предмет не отставал при ходьбе).
+    private Vector3 lastTargetPosition;
+    private Vector3 targetVelocity;
+    private bool hasLastTarget;
+
     private float nextImpactTime;
 
     // Ограничение скорости броска, чтобы предмет не «выстреливал» сквозь стены.
@@ -125,6 +130,8 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
         IsHeld = true;
         targetPosition = holdPosition;
         targetRotation = holdRotation;
+        hasLastTarget = false;
+        targetVelocity = Vector3.zero;
 
         if (IsHeavy)
         {
@@ -221,33 +228,59 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
     /// <summary>Лёгкий предмет: носим в руках. Сила пружины зависит от массы.</summary>
     private void ApplyCarry(Vector3 holdPosition)
     {
-        // Не толкаем предмет сквозь стены: если точка удержания занята — держим на месте.
-        Collider[] overlaps = Physics.OverlapSphere(holdPosition, collisionCheckRadius, collisionMask);
+        // Скорость точки удержания. Без неё пружина «догоняет» уезжающую руку и
+        // предмет отстаёт при ходьбе/беге (в билде это выглядит так, будто точка
+        // перетаскивания уезжает от предмета).
+        if (hasLastTarget && Time.fixedDeltaTime > 0.00001f)
+            targetVelocity = (holdPosition - lastTargetPosition) / Time.fixedDeltaTime;
+        lastTargetPosition = holdPosition;
+        hasLastTarget = true;
+
+        // Слой 3 — Player (см. TagManager): капсулу игрока не считаем препятствием,
+        // иначе предмет замирает, когда точка удержания рядом с игроком.
+        int mask = collisionMask.value & ~(1 << 3);
+        Collider[] overlaps = Physics.OverlapSphere(holdPosition, collisionCheckRadius, mask, QueryTriggerInteraction.Ignore);
         bool blocked = false;
         foreach (Collider col in overlaps)
         {
-            if (col.attachedRigidbody != rb)
+            if (col != null && col.attachedRigidbody != rb)
             {
                 blocked = true;
                 break;
             }
         }
 
-        Vector3 finalTarget = blocked ? rb.position : holdPosition;
+        // Точка занята геометрией — не замораживаем предмет (раньше он оставался
+        // на месте и «отставал»), а ведём его к ближайшей свободной позиции.
+        Vector3 finalTarget = holdPosition;
+        if (blocked)
+        {
+            Vector3 toHold = holdPosition - rb.position;
+            if (toHold.sqrMagnitude > 0.000001f)
+            {
+                float step = Mathf.Max(0.05f, toHold.magnitude - collisionCheckRadius * 2f);
+                finalTarget = rb.position + toHold.normalized * step;
+            }
+        }
+
         Vector3 toTarget = finalTarget - rb.position;
+
+        // Демпфирование считаем относительно скорости точки удержания: предмет
+        // не сопротивляется движению игрока, а держится у руки.
+        Vector3 relativeVelocity = rb.linearVelocity - targetVelocity;
 
         // followForce — жёсткость в Н/м, поэтому тяжёлый предмет разгоняется медленнее.
         // damping * mass превращает демпфирование в силу (Н), сохраняя прежнее ощущение для лёгких предметов.
-        Vector3 force = toTarget * followForce - rb.linearVelocity * (damping * rb.mass);
+        Vector3 force = toTarget * followForce - relativeVelocity * (damping * rb.mass);
         force = Vector3.ClampMagnitude(force, maxForce);
         rb.AddForce(force, ForceMode.Force);
 
         ApplyHoldRotation();
 
-        // Страховка: нельзя «выстрелить» предметом, резко дёрнув мышью.
-        Vector3 velocity = rb.linearVelocity;
-        if (velocity.magnitude > maxCarrySpeed)
-            rb.linearVelocity = velocity.normalized * maxCarrySpeed;
+        // Страховка от «выстрела»: ограничиваем скорость относительно руки.
+        Vector3 rel = rb.linearVelocity - targetVelocity;
+        if (rel.magnitude > maxCarrySpeed)
+            rb.linearVelocity = targetVelocity + rel.normalized * maxCarrySpeed;
     }
 
     /// <summary>Тяжёлый предмет: тащим по земле с ограничением скорости, поднять нельзя.</summary>
