@@ -376,8 +376,8 @@ MonoBehaviour:
   prompt: Use
   outline: {fileID: 1783372192995300753}
   createOutlineIfMissing: 1
-  outlineColor: {r: 1, g: 0.85, b: 0.2, a: 1}
-  outlineWidth: 4
+  outlineColor: {r: 1, g: 1, b: 1, a: 1}
+  outlineWidth: 10
   outlineMode: 1
   wall: {fileID: 0}
   moveWallOnPress: 1

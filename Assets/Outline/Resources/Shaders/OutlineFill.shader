@@ -2,19 +2,18 @@
 //  OutlineFill.shader
 //  QuickOutline — URP-версия
 //
-//  Почему пришлось переписать: оригинальные шейдеры Quick Outline написаны под
-//  built-in pipeline (CGPROGRAM / UnityCG.cginc). URP такие проходы не рисует,
-//  поэтому контур не появлялся ни на одном объекте (материалы добавлялись,
-//  но пикселей не было).
-//
-//  Здесь тот же приём «кокон»: геометрия расширяется по нормалям и рисуется
-//  только там, где она выходит за силуэт объекта (Cull Front + ZTest GEqual —
-//  в URP включён reversed-Z, поэтому «позади» это GEqual).
+//  Оригинальные шейдеры ассета написаны под built-in pipeline (CGPROGRAM /
+//  UnityCG.cginc) — URP такие проходы не рисует вообще, поэтому контура не было.
+//  Здесь та же схема ассета, но на URP:
+//    1) проход-маска (OutlineMask) пишет стенсил 1 по силуэту объекта;
+//    2) этот проход рисует «кокон», расширенный по нормалям, но только там,
+//       где стенсил != 1 — то есть строго за пределами объекта.
+//  Так получается именно обводка, а не заливка объекта.
 //
 
 Shader "Custom/Outline Fill" {
   Properties {
-    [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest("ZTest", Float) = 4
+    [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest("ZTest", Float) = 0
 
     _OutlineColor("Outline Color", Color) = (1, 1, 1, 1)
     _OutlineWidth("Outline Width", Range(0, 10)) = 2
@@ -32,11 +31,16 @@ Shader "Custom/Outline Fill" {
       Name "Fill"
       Tags { "LightMode" = "UniversalForward" }
 
-      Cull Front
-      ZTest GEqual
+      Cull Off
+      ZTest Always
       ZWrite Off
       Blend SrcAlpha OneMinusSrcAlpha
       ColorMask RGB
+
+      Stencil {
+        Ref 1
+        Comp NotEqual
+      }
 
       HLSLPROGRAM
       #pragma vertex vert
@@ -55,8 +59,7 @@ Shader "Custom/Outline Fill" {
         half4 color : COLOR;
       };
 
-      // URP: свойства материала обязаны быть в UnityPerMaterial, иначе не биндятся
-      // (без этого _OutlineColor приходил нулевым и контур был прозрачным).
+      // URP: свойства материала обязаны быть в UnityPerMaterial, иначе не биндятся.
       CBUFFER_START(UnityPerMaterial)
         half4 _OutlineColor;
         float _OutlineWidth;
@@ -72,7 +75,7 @@ Shader "Custom/Outline Fill" {
         float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
         float3 normalWS = TransformObjectToWorldNormal(normal);
 
-        // 0.01 — «сантиметр на единицу ширины»: width 4 даёт ~4 см обводки.
+        // 0.01 — «сантиметр на единицу ширины»: width 10 даёт ~10 см кокона.
         positionWS += normalWS * (_OutlineWidth * 0.01);
 
         output.positionCS = TransformWorldToHClip(positionWS);
