@@ -307,7 +307,7 @@ MonoBehaviour:
   iconSpacing: 175
   defaultIconPrefab: {fileID: 0}
   uiBindings: []
-  rotateItemSensitivity: 3
+  rotateItemSensitivity: 30
   animator: {fileID: 3762680392489575004}
 --- !u!114 &7000000000000000001
 MonoBehaviour:
@@ -348,7 +348,7 @@ MonoBehaviour:
   heavyHoldOffset: {x: 0.3, y: -1.1, z: 1.6}
   breakDistance: 4.5
   throwForce: 9
-  rotateSensitivity: 0.25
+  rotateSensitivity: 2.5
   rotateSmoothTime: 0.03
   invertRotateY: 0
   scrollAdjustsHoldDistance: 1

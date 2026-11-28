@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 [System.Serializable]
 public class GrabUIBinding
@@ -78,21 +77,12 @@ public class GrabManager : MonoBehaviour
         HandleEquippedItemRotation();
     }
 
-    static bool IsRotateButtonHeld()
-    {
-        Mouse mouse = Mouse.current;
-        return mouse != null
-            ? mouse.rightButton.isPressed
-            : Input.GetKey(KeyCode.Mouse1);
-    }
+    // Ввод мыши читаем через legacy Input (см. PhysicsHoldController): при захваченном
+    // курсоре Mouse.current.delta в билде даёт рваные значения.
+    static bool IsRotateButtonHeld() => Input.GetMouseButton(1);
 
     static Vector2 ReadMouseDelta()
-    {
-        Mouse mouse = Mouse.current;
-        if (mouse != null) return mouse.delta.ReadValue();
-
-        return new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
-    }
+        => new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
 
     void HandleEquippedItemRotation()
     {

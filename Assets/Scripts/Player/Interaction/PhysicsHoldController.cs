@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 [DisallowMultipleComponent]
 public class PhysicsHoldController : MonoBehaviour
@@ -138,29 +137,15 @@ public class PhysicsHoldController : MonoBehaviour
             rotateOffset = targetRotateOffset;
     }
 
-    private static bool IsRotateButtonHeld()
-    {
-        Mouse mouse = Mouse.current;
-        return mouse != null
-            ? mouse.rightButton.isPressed
-            : Input.GetKey(KeyCode.Mouse1);
-    }
+    // Ввод мыши для удержания читаем через legacy Input: в билде при захваченном
+    // курсоре Mouse.current.delta даёт рваные значения (предмет дёргается/улетает),
+    // а обзор и движение уже работают через legacy — держим один источник.
+    private static bool IsRotateButtonHeld() => Input.GetMouseButton(1);
 
     private static Vector2 ReadMouseDelta()
-    {
-        Mouse mouse = Mouse.current;
-        if (mouse != null) return mouse.delta.ReadValue();
+        => new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
 
-        return new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y"));
-    }
-
-    private static float ReadMouseScroll()
-    {
-        Mouse mouse = Mouse.current;
-        if (mouse != null) return mouse.scroll.ReadValue().y;
-
-        return Input.mouseScrollDelta.y;
-    }
+    private static float ReadMouseScroll() => Input.mouseScrollDelta.y;
 
     private void ResetRotationOffset()
     {

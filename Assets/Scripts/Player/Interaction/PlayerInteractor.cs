@@ -58,8 +58,33 @@ public class PlayerInteractor : MonoBehaviour
 
         UpdateFocus();
 
-        if (Input.GetKeyDown(interactKey)) Interact();
-        if (Input.GetKeyDown(useKey)) UseOrThrow();
+        if (KeyPressedThisFrame(interactKey)) Interact();
+        if (KeyPressedThisFrame(useKey)) UseOrThrow();
+    }
+
+    /// <summary>
+    /// Нажатие читаем из обоих бэкендов: при активном Input System legacy
+    /// Input.GetKeyDown в билде иногда пропускает нажатие на длинном кадре,
+    /// из-за чего «E не сработало» при подборе.
+    /// </summary>
+    private static bool KeyPressedThisFrame(KeyCode keyCode)
+    {
+        if (Input.GetKeyDown(keyCode)) return true;
+
+        var keyboard = UnityEngine.InputSystem.Keyboard.current;
+        if (keyboard == null) return false;
+
+        UnityEngine.InputSystem.Key key = keyCode switch
+        {
+            KeyCode.E => UnityEngine.InputSystem.Key.E,
+            KeyCode.F => UnityEngine.InputSystem.Key.F,
+            KeyCode.Space => UnityEngine.InputSystem.Key.Space,
+            KeyCode.LeftShift => UnityEngine.InputSystem.Key.LeftShift,
+            KeyCode.Escape => UnityEngine.InputSystem.Key.Escape,
+            _ => UnityEngine.InputSystem.Key.None
+        };
+
+        return key != UnityEngine.InputSystem.Key.None && keyboard[key].wasPressedThisFrame;
     }
 
     /// <summary>F: бросаем предмет из рук, иначе используем предмет инвентаря.</summary>

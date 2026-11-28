@@ -173,6 +173,9 @@ public class FPSController : MonoBehaviour
         originalHeight = col.height;
         originalCenter = col.center;
 
+        // Своя капсула (слой Player) не должна попадать в проверку земли.
+        groundMask &= ~(1 << 3);
+
         // Стартовый поворот берём из сцены: иначе первый же кадр Look()
         // обнулял yaw и игрок оказывался развёрнут не туда, куда поставлен.
         yaw = transform.eulerAngles.y;
@@ -363,8 +366,12 @@ public class FPSController : MonoBehaviour
     {
         if (headTarget == null || cameraJoint == null) return;
 
-        Vector3 targetPos = headTarget.position;
-        cameraJoint.position = Vector3.Lerp(cameraJoint.position, targetPos, Time.deltaTime * cameraFollowSpeed);
+        // Сглаживание, не зависящее от длины кадра: раньше при dt≈0.1 коэффициент
+        // Time.deltaTime * 20 превышал 1, Lerp обрезался — камера прыгала к голове.
+        float dt = Mathf.Min(Time.deltaTime, 0.05f);
+        float t = 1f - Mathf.Exp(-cameraFollowSpeed * dt);
+
+        cameraJoint.position = Vector3.Lerp(cameraJoint.position, headTarget.position, t);
         cameraJoint.localRotation = Quaternion.Euler(pitch, 0f, 0f);
     }
 
@@ -593,7 +600,10 @@ public class FPSController : MonoBehaviour
 
         if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, groundCheckDistance + 0.2f, groundMask, QueryTriggerInteraction.Ignore))
         {
-            if (Vector3.Angle(hit.normal, Vector3.up) <= maxSlopeAngle)
+            // Тянем вниз только когда под ногами реальный зазор (ступенька/склон),
+            // а не каждый шаг стоя на месте — иначе капсула «вдавливается» в пол.
+            float gap = hit.distance - radius;
+            if (gap > 0.02f && Vector3.Angle(hit.normal, Vector3.up) <= maxSlopeAngle)
             {
                 rb.AddForce(-groundNormal * snapForce, ForceMode.Acceleration);
             }
