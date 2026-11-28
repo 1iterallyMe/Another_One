@@ -5271,8 +5271,8 @@ MonoBehaviour:
   prompt: Use
   outline: {fileID: 261553098}
   createOutlineIfMissing: 1
-  outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  outlineWidth: 10
+  outlineColor: {r: 1, g: 0.85, b: 0.2, a: 1}
+  outlineWidth: 4
   outlineMode: 1
   display: {fileID: 1759932462}
   emptyDisplay: _ _ _ _
@@ -32996,7 +32996,7 @@ PrefabInstance:
       objectReference: {fileID: 1229761405}
     - target: {fileID: 6208717689082491608, guid: 586baa040bd814f58984f2a93ce8883e, type: 3}
       propertyPath: m_VersionIndex
-      value: 660
+      value: 663
       objectReference: {fileID: 0}
     - target: {fileID: 6430426679797286982, guid: 586baa040bd814f58984f2a93ce8883e, type: 3}
       propertyPath: m_Mesh
@@ -42578,7 +42578,7 @@ PrefabInstance:
       objectReference: {fileID: 288894018}
     - target: {fileID: 7315273124486103776, guid: 075d2a12435154ba9829f69a9d69dcc1, type: 3}
       propertyPath: m_VersionIndex
-      value: 846
+      value: 849
       objectReference: {fileID: 0}
     - target: {fileID: 7345741565618481840, guid: 075d2a12435154ba9829f69a9d69dcc1, type: 3}
       propertyPath: m_Mesh

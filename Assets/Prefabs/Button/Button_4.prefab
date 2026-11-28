@@ -26,7 +26,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6937932932327399981, guid: 0e29021df0fd34260be1f7b4ccd15d52, type: 3}
       propertyPath: m_Name
-      value: Button_4 Variant
+      value: Button_4
       objectReference: {fileID: 0}
     - target: {fileID: 8319591570325277831, guid: 0e29021df0fd34260be1f7b4ccd15d52, type: 3}
       propertyPath: m_VersionIndex

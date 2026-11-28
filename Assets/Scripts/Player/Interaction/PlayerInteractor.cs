@@ -126,14 +126,20 @@ public class PlayerInteractor : MonoBehaviour
         interactableBuffer.Clear();
         col.GetComponentsInParent<IInteractable>(true, interactableBuffer);
 
+        // Приоритет — объект, с которым действие сейчас доступно. Если такого нет
+        // (например, розетка без провода в руках), всё равно возвращаем первый
+        // найденный: игрок должен видеть подсветку и подсказку, а не «мёртвую» стену.
+        IInteractable fallback = null;
         for (int i = 0; i < interactableBuffer.Count; i++)
         {
             IInteractable candidate = interactableBuffer[i];
-            if (candidate != null && candidate.CanInteract(this))
-                return candidate;
+            if (candidate == null) continue;
+
+            if (fallback == null) fallback = candidate;
+            if (candidate.CanInteract(this)) return candidate;
         }
 
-        return null;
+        return fallback;
     }
 
     bool IsHeldCollider(Collider col)

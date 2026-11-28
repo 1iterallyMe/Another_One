@@ -376,8 +376,8 @@ MonoBehaviour:
   prompt: Use
   outline: {fileID: 7474295554394880971}
   createOutlineIfMissing: 1
-  outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  outlineWidth: 10
+  outlineColor: {r: 1, g: 0.85, b: 0.2, a: 1}
+  outlineWidth: 4
   outlineMode: 1
   wall: {fileID: 0}
   moveWallOnPress: 0
@@ -410,6 +410,15 @@ MonoBehaviour:
   audioSource: {fileID: 5917787797869866889}
   pressVolume: 0.8
   pressPitchRange: {x: 0.97, y: 1.03}
+  playWallMoveSound: 1
+  wallMoveClips: []
+  wallMoveAudioSource: {fileID: 0}
+  wallMoveVolume: 0.8
+  wallMovePitchRange: {x: 0.92, y: 1.08}
+  wallMoveFadeIn: 0.12
+  wallMoveFadeOut: 0.18
+  wallMoveSoundStopDelay: 0.08
+  wallMoveDebugLog: 0
 --- !u!114 &7474295554394880971
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -10,7 +10,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 2825425056154573386, guid: 0ad87f59dd74f4facb291be6b05a8209, type: 3}
       propertyPath: m_Name
-      value: Key_Button_2 Variant
+      value: Key_Button_2
       objectReference: {fileID: 0}
     - target: {fileID: 3375339976251244779, guid: 0ad87f59dd74f4facb291be6b05a8209, type: 3}
       propertyPath: m_LocalPosition.x

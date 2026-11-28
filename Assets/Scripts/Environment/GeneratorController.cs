@@ -298,7 +298,7 @@ public class GeneratorController : MonoBehaviour, IInteractable
     /// Подсветка при наведении не требуется: у корпуса есть собственная лампа состояния,
     /// которая загорается при включении генератора.
     /// </summary>
-    public void SetFocused(bool focused) { }
+    public void SetFocused(bool focused) => OutlineHighlight.Set(this, focused);
 
     // ---------------------------------------------------------------------
     // Визуал

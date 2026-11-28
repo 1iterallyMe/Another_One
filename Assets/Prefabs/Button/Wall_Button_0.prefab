@@ -376,8 +376,8 @@ MonoBehaviour:
   prompt: Use
   outline: {fileID: 1783372192995300753}
   createOutlineIfMissing: 1
-  outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  outlineWidth: 10
+  outlineColor: {r: 1, g: 0.85, b: 0.2, a: 1}
+  outlineWidth: 4
   outlineMode: 1
   wall: {fileID: 0}
   moveWallOnPress: 1
@@ -422,6 +422,7 @@ MonoBehaviour:
   wallMoveFadeIn: 0.12
   wallMoveFadeOut: 0.18
   wallMoveSoundStopDelay: 0.08
+  wallMoveDebugLog: 0
 --- !u!114 &1783372192995300753
 MonoBehaviour:
   m_ObjectHideFlags: 0

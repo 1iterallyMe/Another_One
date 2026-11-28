@@ -500,8 +500,8 @@ MonoBehaviour:
   prompt: "\u0412\u0437\u0430\u0438\u043C\u043E\u0434\u0435\u0439\u0441\u0442\u0432\u043E\u0432\u0430\u0442\u044C"
   outline: {fileID: 9144174815414285198}
   createOutlineIfMissing: 0
-  outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  outlineWidth: 10
+  outlineColor: {r: 1, g: 0.85, b: 0.2, a: 1}
+  outlineWidth: 4
   outlineMode: 1
   socketType: 0
   generator: {fileID: 0}

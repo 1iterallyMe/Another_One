@@ -848,8 +848,8 @@ MonoBehaviour:
   prompt: Pickup
   outline: {fileID: 2942987603256207712}
   createOutlineIfMissing: 1
-  outlineColor: {r: 1, g: 1, b: 1, a: 1}
-  outlineWidth: 10
+  outlineColor: {r: 1, g: 0.85, b: 0.2, a: 1}
+  outlineWidth: 4
   outlineMode: 1
   followForce: 600
   maxForce: 1500

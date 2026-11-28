@@ -313,5 +313,5 @@ public class ZiplineController : MonoBehaviour, IInteractable
 
     public void Interact(PlayerInteractor interactor) => TryStartRide(interactor);
 
-    public void SetFocused(bool focused) { }
+    public void SetFocused(bool focused) => OutlineHighlight.Set(this, focused);
 }

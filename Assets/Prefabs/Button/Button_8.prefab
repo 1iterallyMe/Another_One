@@ -54,7 +54,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2129943458544760859, guid: 7379ff924c9814fb081dd9f2549e0345, type: 3}
       propertyPath: m_Name
-      value: Button_8 Variant
+      value: Button_8
       objectReference: {fileID: 0}
     - target: {fileID: 6165509634670309403, guid: 7379ff924c9814fb081dd9f2549e0345, type: 3}
       propertyPath: customDirection.x
