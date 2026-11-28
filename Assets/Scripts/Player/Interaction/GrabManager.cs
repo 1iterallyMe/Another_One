@@ -606,6 +606,11 @@ public class GrabManager : MonoBehaviour
         SetItemVisible(component, false);
         SetItemAudio(component, false);
         SetItemCollider(component, false);
+
+        // Коллайдеры уже выключены, но трансформ всё равно надо отдать физике
+        // сразу: при выключенном Auto Sync Transforms предмет на один шаг
+        // оставался «призраком» в комнате — его можно было подсветить и схватить.
+        Physics.SyncTransforms();
     }
 
     void SetItemVisible(MonoBehaviour component, bool visible)

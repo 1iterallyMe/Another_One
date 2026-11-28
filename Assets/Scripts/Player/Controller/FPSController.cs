@@ -39,9 +39,6 @@ public class FPSController : MonoBehaviour
     public float torsoMaxUp = 60f;
     public Vector3 torsoAxis = Vector3.right;
 
-    [Tooltip("Плавность следования камеры за головой")]
-    public float cameraFollowSpeed = 20f;
-
     [Header("Holding Weight")]
     [Tooltip("Контроллер удержания предметов. Если пусто — найдётся на этом же объекте.")]
     [SerializeField] private PhysicsHoldController physicsHold;
@@ -366,12 +363,12 @@ public class FPSController : MonoBehaviour
     {
         if (headTarget == null || cameraJoint == null) return;
 
-        // Сглаживание, не зависящее от длины кадра: раньше при dt≈0.1 коэффициент
-        // Time.deltaTime * 20 превышал 1, Lerp обрезался — камера прыгала к голове.
-        float dt = Mathf.Min(Time.deltaTime, 0.05f);
-        float t = 1f - Mathf.Exp(-cameraFollowSpeed * dt);
-
-        cameraJoint.position = Vector3.Lerp(cameraJoint.position, headTarget.position, t);
+        // Камера ставится в точку головы без инерции.
+        // Раньше здесь было Vector3.Lerp с коэффициентом ~0.28 за кадр: камера
+        // отставала от анимированной кости на 2–3 кадра (10–20 см при ходьбе),
+        // картинка «плыла», а луч взаимодействия, который считается позже,
+        // уходил в сторону от того, что игрок видит в центре экрана.
+        cameraJoint.position = headTarget.position;
         cameraJoint.localRotation = Quaternion.Euler(pitch, 0f, 0f);
     }
 
@@ -402,7 +399,11 @@ public class FPSController : MonoBehaviour
 
     void CheckGround()
     {
-        if (Time.time - lastJumpTime < 0.25f)
+        // После прыжка не считаем игрока на земле только пока он реально летит вверх.
+        // Раньше здесь были «глухие» 0.25 с: если приземление попадало в этот
+        // интервал, isGrounded мигал и Move() переключался между двумя разными
+        // моделями движения — отсюда рывки на ступеньках и краях платформ.
+        if (Time.time - lastJumpTime < 0.25f && rb.linearVelocity.y > 0.1f)
         {
             isGrounded = false;
             groundNormal = Vector3.up;
@@ -570,8 +571,18 @@ public class FPSController : MonoBehaviour
         {
             moveDirection = Vector3.ProjectOnPlane(moveDirection, groundNormal).normalized;
             Vector3 targetVelocity = moveDirection * speed;
-            Vector3 velocityChange = targetVelocity - currentVel;
-            rb.AddForce(velocityChange, ForceMode.VelocityChange);
+
+            // Гасим только горизонталь. Раньше VelocityChange с targetVelocity.y = 0
+            // каждый шаг обнулял вертикальную скорость: гравитация снова её
+            // добавляла, SnapToGround додавливал капсулу вниз — пол «дрожал».
+            Vector3 horizontal = new Vector3(currentVel.x, 0f, currentVel.z);
+            Vector3 targetHorizontal = new Vector3(targetVelocity.x, 0f, targetVelocity.z);
+            rb.AddForce(targetHorizontal - horizontal, ForceMode.VelocityChange);
+
+            // Если на земле накопилось падение — ограничиваем его, чтобы капсула
+            // не вдавливалась в пол, но и не «прилипала» с нулевой вертикалью.
+            if (currentVel.y < -0.5f)
+                rb.AddForce(Vector3.up * (-currentVel.y - 0.5f), ForceMode.VelocityChange);
         }
         else
         {
@@ -602,8 +613,9 @@ public class FPSController : MonoBehaviour
         {
             // Тянем вниз только когда под ногами реальный зазор (ступенька/склон),
             // а не каждый шаг стоя на месте — иначе капсула «вдавливается» в пол.
+            // Порог 3 см и запрет на прижатие во время падения убирают дрожь на полу.
             float gap = hit.distance - radius;
-            if (gap > 0.02f && Vector3.Angle(hit.normal, Vector3.up) <= maxSlopeAngle)
+            if (gap > 0.03f && rb.linearVelocity.y > -1f && Vector3.Angle(hit.normal, Vector3.up) <= maxSlopeAngle)
             {
                 rb.AddForce(-groundNormal * snapForce, ForceMode.Acceleration);
             }
@@ -613,10 +625,16 @@ public class FPSController : MonoBehaviour
     void HandleCrouchPhysics()
     {
         float targetHeight = isCrouched ? originalHeight * crouchHeightMultiplier : originalHeight;
-        float newHeight = Mathf.Lerp(col.height, targetHeight, crouchLerpSpeed * Time.fixedDeltaTime);
 
-        float heightDiffFromOriginal = originalHeight - newHeight;
-        col.height = newHeight;
+        // Не переписываем коллайдер каждый шаг: асимптотический Lerp никогда не
+        // приходит ровно к цели, капсула «дышала» на доли миллиметра, а физика
+        // (Auto Sync Transforms выключен) получала новую форму с задержкой на шаг.
+        if (Mathf.Abs(targetHeight - col.height) > 0.0005f)
+            col.height = Mathf.MoveTowards(col.height, targetHeight, originalHeight * crouchLerpSpeed * Time.fixedDeltaTime);
+        else
+            col.height = targetHeight;
+
+        float heightDiffFromOriginal = originalHeight - col.height;
         col.center = new Vector3(originalCenter.x, originalCenter.y - heightDiffFromOriginal * 0.5f, originalCenter.z);
     }
 

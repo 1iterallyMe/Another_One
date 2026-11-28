@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 [DisallowMultipleComponent]
@@ -36,6 +37,12 @@ public class PhysicsHoldController : MonoBehaviour
     private Quaternion rotateOffset = Quaternion.identity;
     private Quaternion targetRotateOffset = Quaternion.identity;
     private float holdDistanceOffset;
+
+    // Пары коллайдеров «игрок ↔ удерживаемый предмет», которым отключены
+    // столкновения. Без этого предмет в 1.5 м перед камерой толкает капсулу
+    // игрока, и вид трясётся при подходе к стене или к самому предмету.
+    private readonly List<Collider> ignoredPlayerColliders = new List<Collider>(1);
+    private readonly List<Collider> ignoredItemColliders = new List<Collider>(8);
 
     public IPhysicsHoldable Held { get; private set; }
 
@@ -226,7 +233,76 @@ public class PhysicsHoldController : MonoBehaviour
         ResetRotationOffset();
         Held = target;
         Held.BeginHold(TargetPosition, TargetRotation);
+        IgnorePlayerCollisions(target);
         HoldStarted?.Invoke(Held);
+    }
+
+    /// <summary>
+    /// Отключает столкновения между капсулой игрока и предметом в руках.
+    /// Иначе предмет отталкивает игрока (и наоборот), и камера дрожит.
+    /// </summary>
+    private void IgnorePlayerCollisions(IPhysicsHoldable target)
+    {
+        RestorePlayerCollisions();
+
+        if (target is not MonoBehaviour component || component == null) return;
+        if (!TryGetPlayerCollider(out Collider playerCollider)) return;
+
+        ignoredPlayerColliders.Add(playerCollider);
+
+        Collider[] itemColliders = component.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < itemColliders.Length; i++)
+        {
+            Collider itemCollider = itemColliders[i];
+            if (itemCollider == null || itemCollider == playerCollider) continue;
+
+            Physics.IgnoreCollision(playerCollider, itemCollider, true);
+            ignoredItemColliders.Add(itemCollider);
+        }
+    }
+
+    /// <summary>Возвращает столкновения игрока и предмета в исходное состояние.</summary>
+    private void RestorePlayerCollisions()
+    {
+        for (int i = 0; i < ignoredItemColliders.Count; i++)
+        {
+            Collider itemCollider = ignoredItemColliders[i];
+            if (itemCollider == null) continue;
+
+            for (int j = 0; j < ignoredPlayerColliders.Count; j++)
+            {
+                Collider playerCollider = ignoredPlayerColliders[j];
+                if (playerCollider == null) continue;
+                Physics.IgnoreCollision(playerCollider, itemCollider, false);
+            }
+        }
+
+        ignoredItemColliders.Clear();
+        ignoredPlayerColliders.Clear();
+    }
+
+    private bool TryGetPlayerCollider(out Collider playerCollider)
+    {
+        playerCollider = GetComponent<CapsuleCollider>();
+        if (playerCollider == null) playerCollider = GetComponent<Collider>();
+        if (playerCollider == null) playerCollider = GetComponentInChildren<Collider>();
+
+        // Только собственные коллайдеры игрока, а не коллайдеры модели в руках.
+        return playerCollider != null && playerCollider.transform.IsChildOf(transform);
+    }
+
+    void OnDisable()
+    {
+        // Зиплайн и другие механики выключают контроллер. Без этого предмет
+        // оставался «в руке» навсегда, а следующий BeginHold телепортировал его
+        // в мировые координаты (Release → EndHold без цели).
+        if (IsHolding) Release();
+        RestorePlayerCollisions();
+    }
+
+    void OnDestroy()
+    {
+        RestorePlayerCollisions();
     }
 
     /// <summary>Направление броска — туда, куда смотрит игрок.</summary>
@@ -255,6 +331,7 @@ public class PhysicsHoldController : MonoBehaviour
 
         var released = Held;
         Held = null;
+        RestorePlayerCollisions();
         ResetRotationOffset();
 
         if (released is UnityEngine.Object o && o == null)
@@ -279,6 +356,7 @@ public class PhysicsHoldController : MonoBehaviour
         if (!IsHolding) return;
         var released = Held;
         Held = null;
+        RestorePlayerCollisions();
         ResetRotationOffset();
 
         if (released is UnityEngine.Object o && o == null)

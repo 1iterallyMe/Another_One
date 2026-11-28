@@ -16,6 +16,8 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
     public float maxForce = 1500f;
     [Tooltip("Демпфирование скорости (1/с). Гасит раскачивание предмета.")]
     public float damping = 15f;
+    [Tooltip("Скорость доворота предмета в руках за игроком (град/с).")]
+    [SerializeField, Min(0f)] private float holdRotationSpeed = 720f;
 
     [Header("Weight / Drag (масса и перетаскивание)")]
     [Tooltip("До этой массы предмет можно поднимать и носить в руках. Тяжелее — только тащить по земле.")]
@@ -321,19 +323,26 @@ public class PickupObject : InteractableBase, IPhysicsHoldable
     {
         if (rb.isKinematic) return;
 
-        // Крутим только если предмет реально отклонился от цели — иначе не трясём его.
-        Quaternion deltaRot = targetRotation * Quaternion.Inverse(rb.rotation);
-        deltaRot.ToAngleAxis(out float angle, out Vector3 axis);
-        if (angle > 180f) angle -= 360f;
+        // Тяжёлый предмет тащится по земле — доворачиваем только вокруг вертикали,
+        // чтобы он не «вставал на ребро» при повороте игрока.
+        Quaternion target = IsHeavy
+            ? Quaternion.Euler(0f, targetRotation.eulerAngles.y, 0f)
+            : targetRotation;
 
-        // При нулевом угле ось может быть нулевой — тогда крутить нечего.
-        if (axis.sqrMagnitude < 0.000001f) return;
-        if (Mathf.Abs(angle) < 0.2f && rb.angularVelocity.sqrMagnitude < 0.0004f) return;
+        float angle = Quaternion.Angle(rb.rotation, target);
+        if (angle < 0.2f)
+        {
+            if (rb.angularVelocity.sqrMagnitude > 0.0004f)
+                rb.angularVelocity *= 0.5f;
+            return;
+        }
 
-        // Чем сильнее доворот, тем быстрее предмет догоняет цель, чтобы
-        // вращение правой кнопкой мыши ощущалось сразу, а не «через полсекунды».
-        Vector3 torque = axis.normalized * angle * 50f - rb.angularVelocity * 14f;
-        rb.AddTorque(Vector3.ClampMagnitude(torque, 300f), ForceMode.Acceleration);
+        // Доворачиваем кинематически. Раньше здесь был только момент (AddTorque):
+        // его гасили контакты с полом и стенами, и предмет оставался в прежней
+        // мировой ориентации, хотя рука уже повернулась за камерой.
+        float step = Mathf.Max(holdRotationSpeed * Time.fixedDeltaTime, 0.5f);
+        rb.MoveRotation(Quaternion.RotateTowards(rb.rotation, target, step));
+        rb.angularVelocity = Vector3.zero;
     }
 
     /// <summary>Предел скорости удержания: чем тяжелее предмет, тем медленнее он двигается.</summary>

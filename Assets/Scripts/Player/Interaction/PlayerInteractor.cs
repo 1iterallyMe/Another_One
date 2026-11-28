@@ -1,6 +1,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+// Порядок выполнения: 10000 — гарантированно после FPSController (по умолчанию 0).
+// Луч взаимодействия обязан считаться ПОСЛЕ того, как камера получила финальные
+// позицию и поворот в LateUpdate, иначе он бьёт из прошлого кадра.
+[DefaultExecutionOrder(10000)]
 [DisallowMultipleComponent]
 public class PlayerInteractor : MonoBehaviour
 {
@@ -10,7 +14,7 @@ public class PlayerInteractor : MonoBehaviour
     [SerializeField] private PhysicsHoldController physicsHold;
 
     [Header("Raycast")]
-    [SerializeField] private float interactDistance = 3f;
+    [SerializeField] private float interactDistance = 3.5f;
     [SerializeField] private float sphereRadius = 0.15f;
     [SerializeField] private LayerMask interactMask = 1 << 6;
 
@@ -32,7 +36,13 @@ public class PlayerInteractor : MonoBehaviour
         if (!physicsHold) physicsHold = GetComponent<PhysicsHoldController>();
     }
 
-    void Update()
+    // Взаимодействие считаем в LateUpdate: к этому моменту FPSController уже
+    // выставил камеру (позиция головы + pitch/yaw), поэтому луч из центра экрана
+    // совпадает с тем, что игрок видит. Раньше это был Update, порядок с
+    // FPSController.Update не определён, а позиция камеры вообще менялась позже —
+    // луч уходил на несколько градусов в сторону: предмет ровно в центре («банан»,
+    // «мяч», розетка) не подсвечивался, а чуть сбоку — ловился.
+    void LateUpdate()
     {
         // Ленивая страховка: если камера не назначена/потеряна — не роняем кадр.
         if (!playerCamera) playerCamera = GetComponentInChildren<Camera>();
@@ -101,18 +111,35 @@ public class PlayerInteractor : MonoBehaviour
 
     void UpdateFocus()
     {
-        IInteractable found = null;
+        // Двери двигаются transform.position, предметы телепортируются в хранилище.
+        // При выключенном Auto Sync Transforms физика узнаёт об этом только на
+        // следующем шаге — коллайдер «отстаёт» и цель то видна, то нет.
+        Physics.SyncTransforms();
+
+        Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
         float bestDistance = float.MaxValue;
 
-        // Луч строго из центра экрана — как прицел. Небольшой радиус сферы
-        // прощает неточное наведение на мелкие объекты (кнопки, вентили).
-        Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
-        int count = Physics.SphereCastNonAlloc(ray, sphereRadius, hits, interactDistance, interactMask, QueryTriggerInteraction.Collide);
+        // 1) Точный луч из центра экрана — он совпадает с прицелом.
+        int count = Physics.RaycastNonAlloc(ray, hits, interactDistance, interactMask, QueryTriggerInteraction.Collide);
+        IInteractable found = PickBest(count, ref bestDistance);
 
-        // Страховка: сфера может промахнуться по тонкому коллайдеру (кнопка, листок)
-        // или начать каст внутри него. Тогда добираем цель обычным лучом.
-        if (count == 0)
-            count = Physics.RaycastNonAlloc(ray, hits, interactDistance, interactMask, QueryTriggerInteraction.Collide);
+        // 2) Только если луч не нашёл интерактивный объект — «прощающая» сфера:
+        // мелкие кнопки и тонкие коллайдеры (листок кода, вентиль).
+        // Раньше сфера стояла первой и ближайший коллайдер слоя 6 (край стола,
+        // триггер розетки, другой проп) перебивал объект под прицелом.
+        if (found == null)
+        {
+            count = Physics.SphereCastNonAlloc(ray, sphereRadius, hits, interactDistance, interactMask, QueryTriggerInteraction.Collide);
+            found = PickBest(count, ref bestDistance);
+        }
+
+        SetFocus(found);
+    }
+
+    /// <summary>Выбирает ближайший интерактивный объект из результатов каста.</summary>
+    IInteractable PickBest(int count, ref float bestDistance)
+    {
+        IInteractable found = null;
 
         for (int i = 0; i < count; i++)
         {
@@ -128,7 +155,7 @@ public class PlayerInteractor : MonoBehaviour
             bestDistance = hit.distance;
         }
 
-        SetFocus(found);
+        return found;
     }
 
     /// <summary>
